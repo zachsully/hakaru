@@ -1,4 +1,5 @@
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DataKinds,
+             GADTs      #-}
 
 ----------------------------------------------------------------
 --                                                    2016.11.01
@@ -17,7 +18,8 @@
 
 module Language.Hakaru.CodeGen.RegionSyn where
 
-data RegAST abt a
-  = Hk (abt '[] a)
-  | LetRegion Region (abt '[] a)
-  deriving Show
+data RegAST abt a where
+  Hk        :: abt '[] a -> RegAST abt a
+  LetRegion :: Region -> abt '[] a -> RegAST abt a
+
+data Region

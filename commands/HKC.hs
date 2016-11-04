@@ -9,7 +9,7 @@ import Language.Hakaru.Syntax.AST.Transforms (expandTransformations)
 import Language.Hakaru.Command
 import Language.Hakaru.CodeGen.Wrapper
 import Language.Hakaru.CodeGen.CodeGenMonad
-import Language.Hakaru.CodeGen.AST
+import Language.Hakaru.CodeGen.CSyn
 import Language.Hakaru.CodeGen.Pretty
 
 import           Control.Monad.Reader

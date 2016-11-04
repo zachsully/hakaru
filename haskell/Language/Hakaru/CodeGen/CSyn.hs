@@ -1,7 +1,7 @@
 --------------------------------------------------------------------------------
 --                                                                 2016.09.08
 -- |
--- Module      :  Language.Hakaru.CodeGen.AST
+-- Module      :  Language.Hakaru.CodeGen.CSyn
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  zsulliva@indiana.edu
@@ -14,7 +14,7 @@
 --
 --------------------------------------------------------------------------------
 
-module Language.Hakaru.CodeGen.AST
+module Language.Hakaru.CodeGen.CSyn
   ( Preprocessor(..), Ident(..), CAST(..), CExtDecl(..), CFunDef(..)
 
   -- declaration constructors

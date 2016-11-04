@@ -19,7 +19,7 @@ module Language.Hakaru.CodeGen.Pretty
   ) where
 
 import Text.PrettyPrint
-import Language.Hakaru.CodeGen.AST
+import Language.Hakaru.CodeGen.CSyn
 
 prettyPrint :: Pretty a => a -> String
 prettyPrint = render . pretty

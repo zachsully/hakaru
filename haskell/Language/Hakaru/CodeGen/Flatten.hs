@@ -31,7 +31,7 @@ module Language.Hakaru.CodeGen.Flatten
   where
 
 import Language.Hakaru.CodeGen.CodeGenMonad
-import Language.Hakaru.CodeGen.AST
+import Language.Hakaru.CodeGen.CSyn
 import Language.Hakaru.CodeGen.Types
 
 import Language.Hakaru.Syntax.AST

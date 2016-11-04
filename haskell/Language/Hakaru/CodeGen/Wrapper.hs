@@ -38,7 +38,7 @@ import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.CodeGen.CodeGenMonad
 import           Language.Hakaru.CodeGen.Flatten
 import           Language.Hakaru.CodeGen.Types
-import           Language.Hakaru.CodeGen.AST
+import           Language.Hakaru.CodeGen.CSyn
 import           Language.Hakaru.Types.DataKind (Hakaru(..))
 
 import           Control.Monad.State.Strict

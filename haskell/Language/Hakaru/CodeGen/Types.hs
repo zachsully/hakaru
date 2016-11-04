@@ -76,7 +76,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Sing
-import Language.Hakaru.CodeGen.AST
+import Language.Hakaru.CodeGen.CSyn
 
 import Prelude hiding (exp,log,sqrt)
 

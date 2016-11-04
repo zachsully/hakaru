@@ -79,7 +79,8 @@ Library
                        Language.Hakaru.CodeGen.Flatten,
                        Language.Hakaru.CodeGen.CodeGenMonad,
                        Language.Hakaru.CodeGen.Types,
-                       Language.Hakaru.CodeGen.AST,
+                       Language.Hakaru.CodeGen.CSyn,
+                       Language.Hakaru.CodeGen.RegionSyn,
                        Language.Hakaru.CodeGen.Pretty,
                        Data.Number.Nat,
                        Data.Number.Natural

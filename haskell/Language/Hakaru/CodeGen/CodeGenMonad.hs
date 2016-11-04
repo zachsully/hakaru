@@ -74,7 +74,7 @@ import Language.Hakaru.Syntax.ABT hiding (var)
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.CodeGen.Types
-import Language.Hakaru.CodeGen.AST
+import Language.Hakaru.CodeGen.CSyn
 import Language.Hakaru.CodeGen.Pretty
 
 import Data.Number.Nat (fromNat)

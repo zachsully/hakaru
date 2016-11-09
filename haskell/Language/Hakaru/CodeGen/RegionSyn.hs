@@ -18,8 +18,9 @@
 
 module Language.Hakaru.CodeGen.RegionSyn where
 
-data RegAST abt a where
-  Hk        :: abt '[] a -> RegAST abt a
-  LetRegion :: Region -> abt '[] a -> RegAST abt a
+data RegAST abt
+  = At abt RegVar
+  | LetRegion RegVar abt
 
+data RegVar
 data Region

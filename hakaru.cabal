@@ -80,6 +80,7 @@ Library
                        Language.Hakaru.CodeGen.CodeGenMonad,
                        Language.Hakaru.CodeGen.Types,
                        Language.Hakaru.CodeGen.CSyn,
+                       Language.Hakaru.CodeGen.InferRegions,
                        Language.Hakaru.CodeGen.RegionSyn,
                        Language.Hakaru.CodeGen.Pretty,
                        Data.Number.Nat,
@@ -193,7 +194,7 @@ Executable density
                        text             >= 0.11 && < 1.3,
                        pretty           >= 1.1  && < 1.2,
                        hakaru           >= 0.3
- 
+
 ----------------------------------------------------------------
 Executable disintegrate
     Main-is:           Disintegrate.hs

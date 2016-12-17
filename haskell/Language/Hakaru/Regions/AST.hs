@@ -4,7 +4,7 @@
 ----------------------------------------------------------------
 --                                                    2016.11.01
 -- |
--- Module      :  Language.Hakaru.CodeGen.RegionSyn
+-- Module      :  Language.Hakaru.Regions.AST
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  zsulliva@indiana.edu
@@ -16,10 +16,11 @@
 ----------------------------------------------------------------
 
 
-module Language.Hakaru.CodeGen.RegionSyn where
+module Language.Hakaru.Regions.AST where
 
-data RegAST abt a where
-  Hk        :: abt '[] a -> RegAST abt a
-  LetRegion :: Region -> abt '[] a -> RegAST abt a
+data RegAST abt
+  = At abt RegVar
+  | LetRegion RegVar abt
 
+data RegVar
 data Region

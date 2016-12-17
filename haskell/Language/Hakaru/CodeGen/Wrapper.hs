@@ -64,21 +64,21 @@ wrapProgram tast@(TypedAST typ _) mn pc =
      baseCG
      return ()
   where baseCG = case (tast,mn) of
-               ( TypedAST (SFun _ retT) abt, Just name ) ->
+               ( TypedAST (SFun _ _) abt, Just name ) ->
                  do reserveName name
                     flattenTopLambda abt $ Ident name
 
-               ( TypedAST (SFun _ retT) abt, Nothing   ) ->
+               ( TypedAST (SFun _ _) abt, Nothing   ) ->
                  genIdent' "fn" >>= \name ->
                    flattenTopLambda abt name
 
 
-  --              ( TypedAST typ'       abt, Just name ) ->
-  --                do reserveName name
-  --                   defineFunction typ'
-  --                                  (Ident name)
-  --                                  []
-  --                                  (putStat . CReturn . Just =<< flattenABT abt)
+               ( TypedAST _ _,                  Just _ ) -> undefined
+                 -- do reserveName name
+                 --    defineFunction typ'
+                 --                   (Ident name)
+                 --                   []
+                 --                   (putStat . CReturn . Just =<< flattenABT abt)
 
                ( TypedAST typ'       abt, Nothing   ) ->
                  mainFunction pc typ' abt
@@ -113,8 +113,6 @@ mainFunction pc typ@(SMeasure t) abt =
   let ident   = Ident "measure"
       funId   = Ident "main"
       mdataId = Ident "mdata"
-  --     isArray = isSArray t
-  --     isPlate = isSArray t
   in  do reserveName "measure"
          reserveName "mdata"
          reserveName "main"
@@ -129,22 +127,6 @@ mainFunction pc typ@(SMeasure t) abt =
   --        -- need to set seed?
   --        -- srand(time(NULL));
 
-         -- main function
-
-  --        -- if it is a plate then allocate space here
-  --        when isArray $
-  --          do let arityABT = caseVarSyn abt (error "mainFunction Plate") getPlateArity
-  --             aE <- flattenABT arityABT
-  --             let dataPtr = CMember (CVar . Ident $ "sample") (Ident "data") True
-  --                 size    = CMember (CVar . Ident $ "sample") (Ident "size") True
-  --                 innerType = getArrayType t
-  --                 mallocCall = CCast (mkPtrDecl innerType)
-  --                                    (mkUnary "malloc"
-  --                                      (aE .*. (CSizeOfType . mkDecl $ innerType)))
-  --             putStat . CExpr . Just $ size .=. aE
-  --             putStat . CExpr . Just $ dataPtr .=. mallocCall
-
-
          printf pc typ (CVar ident)
          putStat . CReturn . Just $ intE 0
 
@@ -154,19 +136,19 @@ mainFunction pc typ@(SMeasure t) abt =
                                                []
                                                (P.reverse $ declarations cg)
                                                (P.reverse $ statements cg)
-  where isSArray (SArray _) = True
-        isSArray _          = False
-        mkArrayStruct :: Sing (a :: Hakaru) -> CExtDecl
-        mkArrayStruct (SArray t) = arrayStruct t
-        mkArrayStruct _          = error "Not Array"
-        getArrayType :: Sing (b :: Hakaru) -> [CTypeSpec]
-        getArrayType (SArray t) = case buildType t of
-                                    [] -> error "wrapper: this shouldn't happen"
-                                    t  -> t
-        getArrayType _          = error "Not Array"
-        getPlateArity :: ABT Term abt => Term abt a -> abt '[] 'HNat
-        getPlateArity (Plate :$ arity :* _ :* End) = arity
-        getPlateArity _ = error "mainFunction not a plate"
+  -- where isSArray (SArray _) = True
+  --       isSArray _          = False
+  --       mkArrayStruct :: Sing (a :: Hakaru) -> CExtDecl
+  --       mkArrayStruct (SArray t) = arrayStruct t
+  --       mkArrayStruct _          = error "Not Array"
+  --       getArrayType :: Sing (b :: Hakaru) -> [CTypeSpec]
+  --       getArrayType (SArray t) = case buildType t of
+  --                                   [] -> error "wrapper: this shouldn't happen"
+  --                                   t  -> t
+  --       getArrayType _          = error "Not Array"
+  --       getPlateArity :: ABT Term abt => Term abt a -> abt '[] 'HNat
+  --       getPlateArity (Plate :$ arity :* _ :* End) = arity
+  --       getPlateArity _ = error "mainFunction not a plate"
 
 -- just a computation
 mainFunction pc typ abt =
@@ -214,9 +196,6 @@ printf
 
 printf pc mt@(SMeasure t) sampleFunc =
   case t of
-    -- (SArray _) -> do s <- runCodeGenBlock $ do putStat . CExpr . Just $ CCall arg [sampleELoc]
-    --                                            printf t sampleE
-    --                  putStat $ CFor Nothing Nothing Nothing s
     _ -> do mId <- genIdent' "m"
             declare mt mId
             let mE = CVar mId
@@ -229,9 +208,13 @@ printf pc mt@(SMeasure t) sampleFunc =
                                                 then mdataWeight mE
                                                 else exp $ mdataWeight mE ]
                                          else [])
-                                     ++ [ mdataSample mE ]
+                                     ++ [ case t of
+                                            SProb -> if showProbInLog pc
+                                                     then mdataSample mE
+                                                     else exp $ mdataSample mE
+                                            _ -> mdataSample mE ]
                 wrapSampleFunc = CCompound $ [CBlockStat getSampleS
-                                             ,CBlockStat $ CIf (mdataReject mE) printSampleE Nothing]
+                                             ,CBlockStat $ CIf ((exp $ mdataWeight mE) .>. (floatE 0)) printSampleE Nothing]
             putStat $ CWhile (intE 1) wrapSampleFunc False
 
 
@@ -284,8 +267,8 @@ printfText c (SMeasure t) = if showWeights c
                                        else "%.15f " ++ printfText c t s
                             else printfText c t
 printfText c (SArray t)   = printfText c t
-printfText c (SFun _ _)   = id
-printfText c (SData _ _)  = \s -> "TODO: printft datum" ++ s
+printfText _ (SFun _ _)   = id
+printfText _ (SData _ _)  = \s -> "TODO: printft datum" ++ s
 
 
 --------------------------------------------------------------------------------
@@ -306,34 +289,38 @@ flattenTopLambda
   => abt '[] a
   -> Ident
   -> CodeGen ()
-flattenTopLambda abt name = undefined
-    -- coalesceLambda abt $ \vars abt' ->
-    -- let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
-    --     typ   = typeOf abt'
-    -- in  do argDecls <- sequence varMs
-    --        cg <- get
-
-    --        case typ of
-    --          SMeasure _ -> do let m       = putStat . CReturn . Just =<< flattenABT abt'
-    --                               (_,cg') = runState m $ cg { statements = []
-    --                                                         , declarations = [] }
-    --                           put $ cg' { statements   = statements cg
-    --                                     , declarations = declarations cg }
-    --                           extDeclare . CFunDefExt
-    --                             $ functionDef typ name
-    --                                               argDecls
-    --                                               (P.reverse $ declarations cg')
-    --                                               (P.reverse $ statements cg')
-    --          _ -> do let m       = putStat . CReturn . Just =<< flattenABT abt'
-    --                      (_,cg') = runState m $ cg { statements = []
-    --                                                , declarations = [] }
-    --                  put $ cg' { statements   = statements cg
-    --                            , declarations = declarations cg }
-    --                  extDeclare . CFunDefExt
-    --                    $ functionDef typ name
-    --                                      argDecls
-    --                                      (P.reverse $ declarations cg')
-    --                                      (P.reverse $ statements cg')
+flattenTopLambda abt name =
+    coalesceLambda abt $ \vars abt' ->
+    let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
+        typ   = typeOf abt'
+    in  do argDecls <- sequence varMs
+           cg <- get
+           case typ of
+             -- SMeasure _ -> error "flattenTopLambda: for Measures"
+             -- SMeasure _ -> do let m       = putStat . CReturn . Just =<< flattenABT abt'
+             --                      (_,cg') = runState m $ cg { statements = []
+             --                                                , declarations = [] }
+             --                  put $ cg' { statements   = statements cg
+             --                            , declarations = declarations cg }
+             --                  extDeclare . CFunDefExt
+             --                    $ functionDef typ name
+             --                                      argDecls
+             --                                      (P.reverse $ declarations cg')
+             --                                      (P.reverse $ statements cg')
+             _ -> do let m       = do outId <- genIdent' "out"
+                                      declare (typeOf abt') outId
+                                      let outE = CVar outId
+                                      flattenABT abt' outE
+                                      putStat . CReturn . Just $ outE
+                         (_,cg') = runState m $ cg { statements = []
+                                                   , declarations = [] }
+                     put $ cg' { statements   = statements cg
+                               , declarations = declarations cg }
+                     extDeclare . CFunDefExt
+                       $ functionDef typ name
+                                         argDecls
+                                         (P.reverse $ declarations cg')
+                                         (P.reverse $ statements cg')
   -- do at top level
   where coalesceLambda
           :: ABT Term abt

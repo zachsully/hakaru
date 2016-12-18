@@ -1,7 +1,8 @@
 {-# LANGUAGE DataKinds,
              FlexibleContexts,
              GADTs,
-             KindSignatures #-}
+             KindSignatures,
+             RankNTypes        #-}
 
 ----------------------------------------------------------------
 --                                                    2016.11.08
@@ -18,20 +19,36 @@
 --
 ----------------------------------------------------------------
 
-module Language.Hakaru.Regions.InferRegions
+module Language.Hakaru.CodeGen.InferRegions
   ( inferRegions
   ) where
 
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Regions.AST
+import Language.Hakaru.CodeGen.RegionSyn
 
 inferRegions
   :: ABT Term abt
   => abt '[] a
   -> RegAST (abt '[] a)
-inferRegions abt = caseVarSyn abt inferRegionTerm inferRegionVar
+inferRegions abt = caseVarSyn abt inferRegionVar inferRegionTerm
 
+inferRegionVar
+  :: Variable (a :: Hakaru)
+  -> RegAST ast
 inferRegionVar = undefined
-inferRegionTerm = undefined
+
+inferRegionTerm
+  :: ABT Term abt
+  => Term abt a
+  -> RegAST (abt '[] a)
+inferRegionTerm (NaryOp_ _ _) = undefined
+inferRegionTerm (Literal_ _) = undefined
+inferRegionTerm (Empty_ _) = undefined
+inferRegionTerm (Datum_ _) = undefined
+inferRegionTerm (Case_ _ _) = undefined
+inferRegionTerm (Array_ _ _) = undefined
+inferRegionTerm (_ :$ _) = undefined
+inferRegionTerm (Reject_ _) = undefined
+inferRegionTerm (Superpose_ _) = undefined

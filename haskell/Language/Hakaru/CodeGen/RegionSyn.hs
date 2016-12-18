@@ -16,11 +16,12 @@
 ----------------------------------------------------------------
 
 
-module Language.Hakaru.Regions.AST where
+module Language.Hakaru.CodeGen.RegionSyn where
 
 data RegAST abt
-  = At abt RegVar
+  = abt :@ RegVar
   | LetRegion RegVar abt
+  deriving (Show,Eq,Ord)
 
-data RegVar
-data Region
+newtype RegVar = RegVar { regVar :: String }
+  deriving (Show,Eq,Ord)

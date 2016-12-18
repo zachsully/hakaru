@@ -81,8 +81,8 @@ Library
                        Language.Hakaru.CodeGen.Types,
                        Language.Hakaru.CodeGen.CSyn,
                        Language.Hakaru.CodeGen.Pretty,
-                       Language.Hakaru.Regions.InferRegions,
-                       Language.Hakaru.Regions.AST,
+                       Language.Hakaru.CodeGen.InferRegions,
+                       Language.Hakaru.CodeGen.RegionSyn,
                        Data.Number.Nat,
                        Data.Number.Natural
 

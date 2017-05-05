@@ -18,7 +18,7 @@ module Language.Hakaru.CodeGen.Libs
     infinityE,negInfinityE,
 
     -- stdio.h
-    printfE, sscanfE, fopenE, fcloseE, fileT, feofE, fgetsE, rewindE,
+    printfE, sscanfE, fopenE, fcloseE, fileT, feofE, fgetsE, fgetcE, rewindE,
 
     -- stdlib.h
     randE, srandE, mallocE, freeE,
@@ -97,8 +97,8 @@ rewindE e = mkCallE "rewind" [e]
 fgetsE :: CExpr -> CExpr -> CExpr -> CExpr
 fgetsE e0 e1 e2 = mkCallE "fgets" [e0,e1,e2]
 
-
-
+fgetcE :: CExpr -> CExpr
+fgetcE e = mkCallE "fgetc" [e]
 
 fileT :: CTypeSpec
 fileT = CTypeDefType (Ident "FILE")

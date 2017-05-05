@@ -175,6 +175,58 @@ mainFunction pconfig typ abt =
 --------------------------------------------------------------------------------
 
 parseCG :: Sing (a :: Hakaru) -> CExpr -> CExpr -> CodeGen CExpr
+parseCG (SArray (SArray t)) from to =
+  do fpId <- genIdent' "fp"
+     buffId <- genIdent' "buff"
+     declare' $ CDecl [CTypeSpec fileT]
+                      [(CDeclr (Just (CPtrDeclr []))
+                               (CDDeclrIdent fpId)
+                               , Nothing)]
+     declare' $ CDecl [CTypeSpec CChar]
+                      [(CDeclr (Just (CPtrDeclr []))
+                               (CDDeclrIdent buffId)
+                               , Nothing)]
+     let fpE = CVar fpId
+         buffE = CVar buffId
+     putExprStat $ fpE .=. (fopenE from (stringE "r"))
+     colsE <- localVar SNat
+     charE <- localVar SInt
+     putExprStat $ colsE .=. (intE 0)
+     -- loop 1 gets the number of columns
+     whileCG (intE 1)
+             (do putExprStat $ charE .=. fgetcE fpE
+                 ifCG (charE .==. (CConstant . CCharConst $ ','))
+                      (putExprStat $ CUnary CPostIncOp colsE)
+                      (return ())
+                 ifCG (charE .==. (CConstant . CCharConst $ '\n'))
+                      (do putExprStat $ CUnary CPostIncOp colsE
+                          putStat CBreak)
+                      (return ()))
+     putMallocStat buffE (colsE .*. (intE 64)) SInt
+     putExprStat $ rewindE fpE
+     -- loop 2 gets the number of row
+     rowsE <- localVar SNat
+     putExprStat $ rowsE .=. (intE 0)
+     whileCG (fgetsE buffE (colsE .*. (intE 64)) fpE .!=. nullE)
+             (do putExprStat $ CUnary CPostIncOp rowsE)
+     putExprStat $ rewindE fpE
+     putExprStat $ arraySize to .=. rowsE
+     putMallocStat (arrayData to) rowsE (SArray t)
+     itE <- localVar SNat
+     forCG (itE .=. (intE 0))
+           (itE .<. rowsE)
+           (CUnary CPostIncOp itE) $
+       do putExprStat $ (arraySize (index (arrayData to) itE)) .=. colsE
+          putMallocStat (arrayData (index (arrayData to) itE)) colsE t
+     -- loop 3 parses the data
+     whileCG (fgetsE buffE (colsE .*. (intE 64)) fpE .!=. nullE)
+             (do checkE <- parseCG t buffE (index (arrayData to) itE)
+                 ifCG (checkE .==. (intE 1))
+                      (putExprStat $ CUnary CPostIncOp itE)
+                      (putExprStat $ CUnary CPostDecOp (arraySize to)))
+     putExprStat $ fcloseE fpE
+     localVar SNat
+
 parseCG (SArray t) from to =
   do fpId <- genIdent' "fp"
      buffId <- genIdent' "buff"
@@ -204,6 +256,7 @@ parseCG (SArray t) from to =
                       (putExprStat $ CUnary CPostDecOp (arraySize to)))
      putExprStat $ fcloseE fpE
      localVar SNat
+
 parseCG t from to =
   do checkE <- localVar SNat
      putExprStat $ checkE .=. sscanfE [from,stringE . parseFormat $ t,address to]

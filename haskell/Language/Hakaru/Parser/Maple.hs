@@ -299,10 +299,10 @@ maple2AST (InertNum Neg i)       = ULiteral $ Int $ fromInteger i
 maple2AST (InertName "infinity") = Infinity'
 maple2AST (InertName t)          = Var (rename t)
 
-maple2AST (InertArgs Float [InertNum Pos a, InertNum _ b]) = 
+maple2AST (InertArgs Float [InertNum Pos a, InertNum _ b]) =
     ULiteral . Prob $ fromInteger a * (10 ^ b)
 
-maple2AST (InertArgs Float [InertNum Neg a, InertNum _ b]) = 
+maple2AST (InertArgs Float [InertNum Neg a, InertNum _ b]) =
     ULiteral . Real $ fromInteger a * (10 ^ b)
 
 maple2AST (InertArgs Func
@@ -364,10 +364,10 @@ maple2AST (InertArgs Func
   go (e1:e2:rest) = If (maple2AST e1) (maple2AST e2) (go rest)
 
 maple2AST (InertArgs Func [InertName "PARTITION"
-        ,InertArgs ExpSeq [InertArgs List [InertArgs ExpSeq es]]]) = 
-  maybe (Var "reject") id $ 
-  foldr piece2AST Nothing es 
-    where piece2AST (InertArgs Func [InertName "Piece", InertArgs ExpSeq cs]) e  
+        ,InertArgs ExpSeq [InertArgs List [InertArgs ExpSeq es]]]) =
+  maybe (Var "reject") id $
+  foldr piece2AST Nothing es
+    where piece2AST (InertArgs Func [InertName "Piece", InertArgs ExpSeq cs]) e
             | [c,v] <- map maple2AST cs = Just $ maybe v (If c v) e
           piece2AST x _ = error $ "Invalid PARTITION contents: " ++ show x
 
@@ -499,12 +499,12 @@ maple2AST (InertArgs Power [x, InertNum Pos y]) =
     App (App (Var "^")  (maple2AST x)) (maple2AST (InertNum Pos y))
 maple2AST (InertArgs Power [x, InertNum Neg (-1)]) =
     App (Var "recip")  (maple2AST x)
-maple2AST (InertArgs Power [x, 
+maple2AST (InertArgs Power [x,
                             InertArgs Rational
                             [InertNum Pos 1, InertNum Pos y]]) =
     App (App (Var "natroot") (maple2AST x)) (ULiteral . Nat $ y)
 
-maple2AST (InertArgs Power [x, 
+maple2AST (InertArgs Power [x,
                             InertArgs Rational
                             [InertNum Neg (-1), InertNum Pos y]]) =
     App (Var "recip")
@@ -555,8 +555,8 @@ mapleDatum2AST h d = case (h, maple2DCode d) of
   ("pair", [x,y]) -> Pair x y
   ("unit", []   ) -> Unit
   _               -> error $ "TODO: mapleDatum2AST " ++ Text.unpack h
-    
-maple2Type :: InertExpr -> TypeAST'
+
+maple2Type :: InertExpr -> AST' Text
 maple2Type (InertArgs Func
             [InertName "HInt",
              InertArgs ExpSeq

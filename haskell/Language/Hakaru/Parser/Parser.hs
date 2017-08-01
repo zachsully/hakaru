@@ -32,7 +32,7 @@ names = concatMap words [ "def fn"
                         , "integrate summate product from to"
                         , "array plate chain of"
                         , "r_nop r_split r_index r_fanout r_add bucket"
-                        , "import data ∞" ]
+                        , "import data type ∞" ]
 
 type ParserStream    = IndentStream (CharIndentStream Text)
 type Parser          = ParsecT     ParserStream () Identity
@@ -251,13 +251,44 @@ parenthesized = f <$> parens (commaSep expr)
   where f [] = Unit
         f xs = foldr1 Pair xs
 
-type_var_or_app :: Parser TypeAST'
+--------------------------------------------------------------------------------
+--                                  Types                                     --
+--------------------------------------------------------------------------------
+
+type_var_or_app :: Parser (AST' Text)
 type_var_or_app = do x <- ("array" <$ reserved "array") <|> identifier
                      option (TypeVar x) (TypeApp x <$> parens (commaSep type_expr))
 
-type_expr :: Parser TypeAST'
+type_expr :: Parser (AST' Text)
 type_expr = foldr1 TypeFun <$> sepBy1 (parens type_expr <|> type_var_or_app)
                                       (reservedOp "->")
+
+{-
+user-defined types:
+
+data either(a,b):
+  left(a)
+  right(a)
+
+data maybe(a):
+  nothing
+  just(a)
+-}
+
+data_expr :: Parser (AST' Text)
+data_expr = do
+    reserved "data"
+    ident <- identifier
+    typvars <- parens (commaSep identifier)
+    ts <- blockOfMany type_var_or_app
+    return (TypeLam ident undefined)
+
+type_syn_expr :: Parser (AST' Text)
+type_syn_expr =
+    reserved "type" *>
+      (TypeLam <$> identifier <* reservedOp "=" <*> type_expr)
+
+--------------------------------------------------------------------------------
 
 ann_expr :: Parser (AST' Text -> AST' Text)
 ann_expr = reservedOp "." *> (flip Ann <$> type_expr)
@@ -431,7 +462,7 @@ def_expr = localIndentation Ge $ do
     Let name (maybe id (flip Ann) typ body')
         <$> absoluteIndentation expr -- the \"rest\"; i.e., where the 'def' is in scope
 
-defarg :: Parser (Text, TypeAST')
+defarg :: Parser (Text, AST' Text)
 defarg = (,) <$> identifier <*> type_expr
 
 fun_call :: Parser (AST' Text -> AST' Text)
@@ -448,6 +479,7 @@ term =  if_expr
     <|> def_expr
     <|> match_expr
     <|> data_expr
+    <|> type_syn_expr
     <|> integrate_expr
     <|> summate_expr
     <|> product_expr
@@ -492,27 +524,6 @@ withPos x = do
     x' <- x
     e  <- getPosition
     return $ WithMeta x' (SourceSpan s e)
-
-{-
-user-defined types:
-
-data either(a,b):
-  left(a)
-  right(a)
-
-data maybe(a):
-  nothing
-  just(a)
--}
-
-data_expr :: Parser (AST' Text)
-data_expr = do
-    reserved "data"
-    ident <- identifier
-    typvars <- parens (commaSep identifier)
-    ts <- blockOfMany type_var_or_app
-    e <- expr
-    return (Data ident typvars ts e)
 
 import_expr :: Parser (Import Text)
 import_expr =

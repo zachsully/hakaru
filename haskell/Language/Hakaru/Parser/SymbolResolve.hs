@@ -279,7 +279,7 @@ resolveBinder symbols name e1 e2 f = do
 
 
 -- TODO: clean up by merging the @Reader (SymbolTable)@ and @State Int@ monads
--- | Figure out symbols and types.
+-- | Traverses AST' replacing names with gensymed names
 symbolResolution
     :: SymbolTable
     -> U.AST' Text
@@ -293,8 +293,9 @@ symbolResolution symbols ast =
 
     U.Lam name typ x -> do
         name' <- gensym name
-        U.Lam (mkSym name') typ
-            <$> symbolResolution (insertSymbol name' symbols) x
+        U.Lam (mkSym name')
+            <$> symbolResolution symbols typ
+            <*> symbolResolution (insertSymbol name' symbols) x
 
     U.App f x -> U.App
         <$> symbolResolution symbols f
@@ -306,7 +307,8 @@ symbolResolution symbols ast =
         <*> symbolResolution symbols e2
         <*> symbolResolution symbols e3
 
-    U.Ann e typ         -> (`U.Ann` typ) <$> symbolResolution symbols e
+    U.Ann e typ         -> U.Ann <$> symbolResolution symbols e
+                                 <*> symbolResolution symbols typ
     U.Infinity'         -> return $ U.Infinity'
     U.ULiteral v        -> return $ U.ULiteral v
 
@@ -370,12 +372,19 @@ symbolResolution symbols ast =
 
     U.Msum es -> U.Msum <$> mapM (symbolResolution symbols) es
 
-    U.Data name tvars typ e -> error $ ("TODO: symbolResolution{U.Data} " ++
-                                        show name  ++ " with " ++
-                                        show tvars ++ ":" ++ show typ)
     U.WithMeta a meta -> U.WithMeta
         <$> symbolResolution symbols a
         <*> return meta
+
+    U.TypeVar name ->
+        case lookup name symbols of
+        Nothing -> (U.Var . mkSym) <$> gensym name
+        Just a  -> return $ U.Var a
+
+    U.TypeApp a b -> undefined
+    U.TypeFun a b -> undefined
+    U.TypeLam name b -> undefined
+
 
 symbolResolutionReducer
     :: SymbolTable
@@ -469,7 +478,6 @@ normAST ast =
     U.Chain  name e1 e2 e3    -> U.Chain  name (normAST e1) (normAST e2) (normAST e3)
     U.Expect name e1 e2       -> U.Expect name (normAST e1) (normAST e2)
     U.Msum es                 -> U.Msum (map normAST es)
-    U.Data name tvars typs e  -> U.Data name tvars typs e
      -- do we need to norm here? what if we try to define `true` which is already a constructor
     U.WithMeta a meta         -> U.WithMeta (normAST a) meta
 
@@ -501,18 +509,21 @@ collapseSuperposes es = syn $ U.Superpose_ (fromList $ F.concatMap go es)
     prob_ :: Ratio Integer -> U.AST
     prob_ = syn . U.Literal_ . U.val . U.Prob
 
-makeType :: U.TypeAST' -> U.SSing
-makeType (U.TypeVar t) =
-    case lookup t primTypes of
-    Just (TNeu' t') -> t'
-    _               -> error $ "Type " ++ show t ++ " is not a primitive"
-makeType (U.TypeFun f x) =
-    case (makeType f, makeType x) of
-    (U.SSing f', U.SSing x') -> U.SSing $ SFun f' x'
-makeType (U.TypeApp f args) =
-    case lookup f primTypes of
-    Just (TLam' f') -> f' (map makeType args)
-    _               -> error $ "Type " ++ show f ++ " is not a primitive"
+makeType :: U.AST' a -> U.SSing
+makeType = undefined
+
+-- makeType :: U.TypeAST' -> U.SSing
+-- makeType (U.TypeVar t) =
+--     case lookup t primTypes of
+--     Just (TNeu' t') -> t'
+--     _               -> error $ "Type " ++ show t ++ " is not a primitive"
+-- makeType (U.TypeFun f x) =
+--     case (makeType f, makeType x) of
+--     (U.SSing f', U.SSing x') -> U.SSing $ SFun f' x'
+-- makeType (U.TypeApp f args) =
+--     case lookup f primTypes of
+--     Just (TLam' f') -> f' (map makeType args)
+--     _               -> error $ "Type " ++ show f ++ " is not a primitive"
 
 
 makePattern :: U.Pattern' U.Name -> U.Pattern
@@ -616,8 +627,6 @@ makeAST ast =
         withName "U.Expect" s $ \name ->
             syn $ U.Expect_ (makeAST e1) (bind name $ makeAST e2)
     U.Msum es -> collapseSuperposes (map makeAST es)
-
-    U.Data name tvars typs e -> error "TODO: makeAST{U.Data}" 
     U.WithMeta a meta -> withMetadata meta (makeAST a)
 
 withName :: String -> Symbol U.AST -> (Variable 'U.U -> r) -> r

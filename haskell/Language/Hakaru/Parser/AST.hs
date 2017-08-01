@@ -54,8 +54,12 @@ nameID (Name i _) = i
 hintID :: Name -> T.Text
 hintID (Name _ t) = t
 
-----------------------------------------------------------------
-----------------------------------------------------------------
+--------------------------------------------------------------------------------
+--                                AST'                                        --
+--------------------------------------------------------------------------------
+{-
+AST' is the first structure that concrete Hakaru is parsed to.
+-}
 
 type Name' = T.Text
 
@@ -134,12 +138,6 @@ data NaryOp
 
 data ArrayOp = Index_ | Size | Reduce deriving (Data, Typeable)
 
-data TypeAST'
-    = TypeVar Name'
-    | TypeApp Name'    [TypeAST']
-    | TypeFun TypeAST' TypeAST'
-    deriving (Eq, Show, Data, Typeable)
-
 data Reducer' a
     = R_Fanout (Reducer' a) (Reducer' a)
     | R_Index a (AST' a) (AST' a) (Reducer' a)
@@ -148,13 +146,15 @@ data Reducer' a
     | R_Add (AST' a)
     deriving (Eq, Show, Data, Typeable)
 
-data AST' a
-    = Var a
-    | Lam a TypeAST' (AST' a)
+-- AST' is abstracted over the type of the variables
+data AST' a =
+     -- terms
+      Var a
+    | Lam a (AST' a) (AST' a) -- the second argument should be a type
     | App (AST' a) (AST' a)
     | Let a    (AST' a) (AST' a)
     | If  (AST' a) (AST' a) (AST' a)
-    | Ann (AST' a) TypeAST'
+    | Ann (AST' a) (AST' a)
     | Infinity'
     | ULiteral Literal'
     | NaryOp NaryOp [AST' a]
@@ -173,9 +173,15 @@ data AST' a
     | Bucket    a (AST' a) (AST' a) (Reducer' a)
     | Expect a (AST' a) (AST' a)
     | Msum  [AST' a]
-    | Data  a [a] [TypeAST'] (AST' a)
     | WithMeta (AST' a) SourceSpan
+
+    -- types
+    | TypeVar a
+    | TypeApp a [AST' a]
+    | TypeFun (AST' a) (AST' a)
+    | TypeLam a (AST' a)  -- for now type level lambda will always be of kind * -> *
     deriving (Show, Data, Typeable)
+
 
 withoutMeta :: AST' a -> AST' a
 withoutMeta (WithMeta e _) = withoutMeta e
@@ -185,80 +191,90 @@ withoutMetaE :: forall a . Data a => AST' a -> AST' a
 withoutMetaE = everywhere (mkT (withoutMeta :: AST' a -> AST' a))
 
 instance Eq a => Eq (AST' a) where
-    (Var t)             == (Var t')                 = t    == t'
-    (Lam n  e1 e2)      == (Lam n' e1' e2')         = n    == n'  &&
-                                                      e1   == e1' &&
-                                                      e2   == e2'
-    (App    e1 e2)      == (App    e1' e2')         = e1   == e1' &&
-                                                      e2   == e2'
-    (Let n  e1 e2)      == (Let n' e1' e2')         = n    == n'  &&
-                                                      e1   == e1' &&
-                                                      e2   == e2'
-    (If  c  e1 e2)      == (If  c' e1' e2')         = c    == c'  &&
-                                                      e1   == e1' &&
-                                                      e2   == e2'
-    (Ann e typ)         == (Ann e' typ')            = e    == e'  &&
-                                                      typ  == typ'
-    Infinity'           == Infinity'                = True
-    (ULiteral v)        == (ULiteral v')            = v    == v'
-    (NaryOp op args)    == (NaryOp op' args')       = op   == op' &&
-                                                      args == args'
-    Unit                == Unit                     = True
-    (Pair  e1 e2)       == (Pair   e1' e2')         = e1   == e1' &&
-                                                      e2   == e2'
-    (Array e1 e2 e3)    == (Array  e1' e2' e3')     = e1   == e1' &&
-                                                      e2   == e2' &&
-                                                      e3   == e3'
-    (ArrayLiteral es)   == (ArrayLiteral es')       = es   == es'
-    (Index e1 e2)       == (Index  e1' e2')         = e1   == e1' &&
-                                                      e2   == e2'
-    (Case  e1 bs)       == (Case   e1' bs')         = e1   == e1' &&
-                                                      bs   == bs'
-    (Bind  e1 e2 e3)    == (Bind   e1' e2' e3')     = e1   == e1' &&
-                                                      e2   == e2' &&
-                                                      e3   == e3'
-    (Plate e1 e2 e3)    == (Plate  e1' e2' e3')     = e1   == e1' &&
-                                                      e2   == e2' &&
-                                                      e3   == e3'
-    (Chain e1 e2 e3 e4) == (Chain  e1' e2' e3' e4') = e1   == e1' &&
-                                                      e2   == e2' &&
-                                                      e3   == e3' &&
-                                                      e4   == e4'
-    (Integrate a b c d) == (Integrate  a' b' c' d') = a    == a' &&
-                                                      b    == b' &&
-                                                      c    == c' &&
-                                                      d    == d'
-    (Summate   a b c d) == (Summate    a' b' c' d') = a    == a' &&
-                                                      b    == b' &&
-                                                      c    == c' &&
-                                                      d    == d'
-    (Product   a b c d) == (Product    a' b' c' d') = a    == a' &&
-                                                      b    == b' &&
-                                                      c    == c' &&
-                                                      d    == d'
-    (Bucket    a b c d) == (Bucket     a' b' c' d') = a    == a' &&
-                                                      b    == b' &&
-                                                      c    == c' &&
-                                                      d    == d'
-    (Expect e1 e2 e3)   == (Expect e1' e2' e3')     = e1   == e1' &&
-                                                      e2   == e2' &&
-                                                      e3   == e3'
-    (Msum  es)          == (Msum   es')             = es   == es'
-    (Data  n ft ts e)   == (Data   n' ft' ts' e')   = n    == n'  &&
-                                                      ft   == ft' &&
-                                                      ts   == ts' &&
-                                                      e    == e'
-    (WithMeta e1 _ )    == e2                       = e1   == e2
-    e1                  == (WithMeta e2 _)          = e1   == e2
-    _                   == _                        = False
+     (Var t)             == (Var t')                 = t    == t'
+     (Lam n  e1 e2)      == (Lam n' e1' e2')         = n    == n'  &&
+                                                       e1   == e1' &&
+                                                       e2   == e2'
+     (App    e1 e2)      == (App    e1' e2')         = e1   == e1' &&
+                                                       e2   == e2'
+     (Let n  e1 e2)      == (Let n' e1' e2')         = n    == n'  &&
+                                                       e1   == e1' &&
+                                                       e2   == e2'
+     (If  c  e1 e2)      == (If  c' e1' e2')         = c    == c'  &&
+                                                       e1   == e1' &&
+                                                       e2   == e2'
+     (Ann e typ)         == (Ann e' typ')            = e    == e'  &&
+                                                       typ  == typ'
+     Infinity'           == Infinity'                = True
+     (ULiteral v)        == (ULiteral v')            = v    == v'
+     (NaryOp op args)    == (NaryOp op' args')       = op   == op' &&
+                                                       args == args'
+     Unit                == Unit                     = True
+     (Pair  e1 e2)       == (Pair   e1' e2')         = e1   == e1' &&
+                                                       e2   == e2'
+     (Array e1 e2 e3)    == (Array  e1' e2' e3')     = e1   == e1' &&
+                                                       e2   == e2' &&
+                                                       e3   == e3'
+     (ArrayLiteral es)   == (ArrayLiteral es')       = es   == es'
+     (Index e1 e2)       == (Index  e1' e2')         = e1   == e1' &&
+                                                       e2   == e2'
+     (Case  e1 bs)       == (Case   e1' bs')         = e1   == e1' &&
+                                                       bs   == bs'
+     (Bind  e1 e2 e3)    == (Bind   e1' e2' e3')     = e1   == e1' &&
+                                                       e2   == e2' &&
+                                                       e3   == e3'
+     (Plate e1 e2 e3)    == (Plate  e1' e2' e3')     = e1   == e1' &&
+                                                       e2   == e2' &&
+                                                       e3   == e3'
+     (Chain e1 e2 e3 e4) == (Chain  e1' e2' e3' e4') = e1   == e1' &&
+                                                       e2   == e2' &&
+                                                       e3   == e3' &&
+                                                       e4   == e4'
+     (Integrate a b c d) == (Integrate  a' b' c' d') = a    == a' &&
+                                                       b    == b' &&
+                                                       c    == c' &&
+                                                       d    == d'
+     (Summate   a b c d) == (Summate    a' b' c' d') = a    == a' &&
+                                                       b    == b' &&
+                                                       c    == c' &&
+                                                       d    == d'
+     (Product   a b c d) == (Product    a' b' c' d') = a    == a' &&
+                                                       b    == b' &&
+                                                       c    == c' &&
+                                                       d    == d'
+     (Bucket    a b c d) == (Bucket     a' b' c' d') = a    == a' &&
+                                                       b    == b' &&
+                                                       c    == c' &&
+                                                       d    == d'
+     (Expect e1 e2 e3)   == (Expect e1' e2' e3')     = e1   == e1' &&
+                                                       e2   == e2' &&
+                                                       e3   == e3'
+     (Msum  es)          == (Msum   es')             = es   == es'
+     (WithMeta e1 _ )    == e2                       = e1   == e2
+     e1                  == (WithMeta e2 _)          = e1   == e2
+     (TypeVar a)         == (TypeVar b)              = a    == b
+     (TypeApp a as)      == (TypeApp b bs)           = a    == b &&
+                                                       as   == bs
+     (TypeFun a0 a1)     == (TypeFun b0 b1)          = a0   == b0 &&
+                                                       a1   == b1
+     (TypeLam a0 a1)     == (TypeLam b0 b1)          = a0   == b0 &&
+                                                       a1   == b1
+     _                   == _                        = False
+
+
 
 data Import a = Import a
      deriving (Eq, Show)
 data ASTWithImport' a = ASTWithImport' [Import a] (AST' a)
      deriving (Eq, Show)
 
-----------------------------------------------------------------
-----------------------------------------------------------------
+--------------------------------------------------------------------------------
+--                             Untyped Terms                                  --
+--------------------------------------------------------------------------------
+{-
+Following symbol resolution, `SymbolResolution.makeAST` converts AST' into the
+the Term GADT within an abstract binding tree.
+-}
 
 val :: Literal' -> Some1 Literal
 val (Nat  n) = Some1 $ LNat  (N.unsafeNatural n)
@@ -445,6 +461,7 @@ data Term :: ([Untyped] -> Untyped -> *) -> Untyped -> * where
     Array_        :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
     ArrayLiteral_ :: [abt '[] 'U]                        -> Term abt 'U
     Datum_        :: Datum abt                           -> Term abt 'U
+    TypeSyn_      :: SSing            -> abt '[ 'U ] 'U  -> Term abt 'U
     Case_         :: abt '[] 'U       -> [Branch_ abt]   -> Term abt 'U
     Dirac_        :: abt '[] 'U                          -> Term abt 'U
     MBind_        :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
@@ -479,6 +496,7 @@ instance Functor21 Term where
     fmap21 f (Array_     e1  e2)    = Array_     (f e1) (f e2)
     fmap21 f (ArrayLiteral_  es)    = ArrayLiteral_     (fmap f es)
     fmap21 f (Datum_     d)         = Datum_     (fmapDatum f d)
+    fmap21 f (TypeSyn_   typ e1)    = TypeSyn_   typ    (f e1)
     fmap21 f (Case_      e1  bs)    = Case_      (f e1) (fmap (fmapBranch f) bs)
     fmap21 f (Dirac_     e1)        = Dirac_     (f e1)
     fmap21 f (MBind_     e1  e2)    = MBind_     (f e1) (f e2)
@@ -510,6 +528,7 @@ instance Foldable21 Term where
     foldMap21 f (Array_     e1 e2)    = f e1 `mappend` f e2
     foldMap21 f (ArrayLiteral_ es)    = F.foldMap f es
     foldMap21 f (Datum_     d)        = foldDatum f d
+    foldMap21 f (TypeSyn_   _  e1)    = f e1
     foldMap21 f (Case_      e1 bs)    = f e1 `mappend` F.foldMap (foldBranch f) bs
     foldMap21 f (Dirac_     e1)       = f e1
     foldMap21 f (MBind_     e1 e2)    = f e1 `mappend` f e2

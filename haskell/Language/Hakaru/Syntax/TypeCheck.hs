@@ -173,6 +173,7 @@ mustCheck e = caseVarSyn e (const False) go
     go (U.Array_ _ e1)      = mustCheck' e1
     go (U.ArrayLiteral_ es) = F.all mustCheck es
     go (U.Datum_ _)         = True
+    go (U.TypeSyn_ _ e)    = mustCheck' e
 
     -- TODO: everyone says this, but it seems to me that if we can
     -- infer any of the branches (and check the rest to agree) then
@@ -401,8 +402,8 @@ data TypedAST (abt :: [Hakaru] -> Hakaru -> *)
 onTypedAST :: (forall b . abt '[] b -> abt '[] b) -> TypedAST abt -> TypedAST abt
 onTypedAST f (TypedAST t p) = TypedAST t (f p)
 
-elimTypedAST :: (forall b . Sing b -> abt '[] b -> x) -> TypedAST abt -> x 
-elimTypedAST f (TypedAST t p) = f t p 
+elimTypedAST :: (forall b . Sing b -> abt '[] b -> x) -> TypedAST abt -> x
+elimTypedAST f (TypedAST t p) = f t p
 
 instance Show2 abt => Show (TypedAST abt) where
     showsPrec p (TypedAST typ e) =
@@ -752,6 +753,10 @@ inferType = inferType_
                _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ)
 
        U.InjTyped t     -> let t' = t in return $ TypedAST (typeOf t') t'
+
+       U.TypeSyn_ (U.SSing typ) e -> undefined
+           -- inferBinder typ e $ \typ2 e2 ->
+           --     return . (TypedAST typ2) $ (undefined :: (ABT Term abt) => abt '[] a)
 
        _   | mustCheck e0 -> ambiguousMustCheck sourceSpan
            | otherwise    -> error "inferType: missing an inferable branch!"
@@ -1338,7 +1343,7 @@ checkType = checkType_
         case t of
         -- Change of direction rule suggests this doesn't need to be here
         -- We keep it here in case, we later use a U.Lam which doesn't
-        -- carry the type of its variable 
+        -- carry the type of its variable
         U.Lam_ (U.SSing typ) e1 ->
             case typ0 of
             SFun typ1 typ2 ->
@@ -1532,6 +1537,8 @@ checkType = checkType_
             in case jmEq1 typ0 typ1 of
                  Just Refl -> return t
                  Nothing   -> typeMismatch sourceSpan (Right typ0) (Right typ1)
+
+        U.TypeSyn_ (U.SSing typ) e -> undefined
 
         _   | inferable e0 -> do
                 TypedAST typ' e0' <- inferType_ e0

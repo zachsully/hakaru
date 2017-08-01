@@ -23,7 +23,6 @@ import           Data.Foldable                   as F
 import           Data.Ratio
 import           Data.Proxy                      (KProxy(..))
 import           Data.List.NonEmpty              as L (NonEmpty(..), fromList)
-import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.Types.Coercion
 import           Language.Hakaru.Types.DataKind  hiding (Symbol)
 import           Language.Hakaru.Types.HClasses
@@ -395,6 +394,17 @@ symbolResolution symbols ast =
         U.TypeLam (mkSym name')
             <$> symbolResolution (insertSymbol name' symbols) x
 
+    U.TypeNat -> return U.TypeNat
+    U.TypeInt -> return U.TypeInt
+    U.TypeProb -> return U.TypeProb
+    U.TypeReal -> return U.TypeReal
+    U.TypeSum es -> U.TypeSum <$> mapM (symbolResolution symbols) es
+    U.TypeProd es -> U.TypeProd <$> mapM (symbolResolution symbols) es
+    U.TypeMeasure e -> U.TypeMeasure <$> symbolResolution symbols e
+    U.TypeArray e -> U.TypeArray <$> symbolResolution symbols e
+    _ -> error "TODO: missing case symbolResolution"
+
+
 
 symbolResolutionReducer
     :: SymbolTable
@@ -490,6 +500,19 @@ normAST ast =
     U.Msum es                 -> U.Msum (map normAST es)
      -- do we need to norm here? what if we try to define `true` which is already a constructor
     U.WithMeta a meta         -> U.WithMeta (normAST a) meta
+    U.TypeVar a               -> U.TypeVar a
+    U.TypeApp     e1 e2       -> U.TypeApp (normAST e1) (normAST e2)
+    U.TypeFun     e1 e2       -> U.TypeFun (normAST e1) (normAST e2)
+    U.TypeLam n   e1          -> U.TypeLam n (normAST e1)
+    U.TypeNat                 -> U.TypeNat
+    U.TypeInt                 -> U.TypeInt
+    U.TypeProb                -> U.TypeProb
+    U.TypeReal                -> U.TypeReal
+    U.TypeSum  es             -> U.TypeSum (map normAST es)
+    U.TypeProd es             -> U.TypeProd (map normAST es)
+    U.TypeMeasure e1          -> U.TypeMeasure (normAST e1)
+    U.TypeArray   e1          -> U.TypeArray (normAST e1)
+    _ -> error "TODO: missing case normAST"
 
 branchNorm :: U.Branch' (Symbol U.AST) -> U.Branch' (Symbol U.AST)
 branchNorm (U.Branch'  pat e2') = U.Branch'  pat (normAST e2')
@@ -621,7 +644,24 @@ makeAST ast =
             syn $ U.Expect_ (makeAST e1) (bind name $ makeAST e2)
     U.Msum es -> collapseSuperposes (map makeAST es)
     U.WithMeta a meta -> withMetadata meta (makeAST a)
-    e -> error "TODO: missing case makeAST"
+
+    U.TypeVar (TLam _) ->
+        error "makeAST: Passed primitive with wrong number of arguments"
+    U.TypeVar (TNeu e) -> e
+    U.TypeApp e1 e2 -> syn $ U.TypeApp_ (makeAST e1) (makeAST e2)
+    U.TypeFun e1 e2 -> syn $ U.TypeFun_ (makeAST e1) (makeAST e2)
+    U.TypeLam s e1 ->
+        withName "U.TypeLam" s $ \name ->
+            syn $ U.TypeLam_ (bind name $ makeAST e1)
+    U.TypeNat -> syn U.TypeNat_
+    U.TypeInt -> syn U.TypeInt_
+    U.TypeProb -> syn U.TypeProb_
+    U.TypeReal -> syn U.TypeReal_
+    U.TypeSum es -> syn $ U.TypeSum_ (map makeAST es)
+    U.TypeProd es -> syn $ U.TypeProd_ (map makeAST es)
+    U.TypeMeasure e -> syn $ U.TypeMeasure_ (makeAST e)
+    U.TypeArray e -> syn $ U.TypeArray_ (makeAST e)
+    _ -> error "TODO: missing case makeAST"
 
 withName :: String -> Symbol U.AST -> (Variable 'U.U -> r) -> r
 withName fun s k =

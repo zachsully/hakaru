@@ -177,9 +177,16 @@ data AST' a =
 
     -- types
     | TypeVar a
-    | TypeApp a [AST' a]
+    | TypeApp (AST' a) (AST' a)
     | TypeFun (AST' a) (AST' a)
     | TypeLam a (AST' a)  -- for now type level lambda will always be of kind * -> *
+    | TypeNat
+    | TypeInt
+    | TypeProb
+    | TypeReal
+    | TypeSum  [AST' a]
+    | TypeProd [AST' a]
+    | TypeMeasure (AST' a)
     deriving (Show, Data, Typeable)
 
 
@@ -274,6 +281,8 @@ data ASTWithImport' a = ASTWithImport' [Import a] (AST' a)
 {-
 Following symbol resolution, `SymbolResolution.makeAST` converts AST' into the
 the Term GADT within an abstract binding tree.
+
+U_ABT '[] 'U
 -}
 
 val :: Literal' -> Some1 Literal
@@ -461,7 +470,6 @@ data Term :: ([Untyped] -> Untyped -> *) -> Untyped -> * where
     Array_        :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
     ArrayLiteral_ :: [abt '[] 'U]                        -> Term abt 'U
     Datum_        :: Datum abt                           -> Term abt 'U
-    TypeSyn_      :: SSing            -> abt '[ 'U ] 'U  -> Term abt 'U
     Case_         :: abt '[] 'U       -> [Branch_ abt]   -> Term abt 'U
     Dirac_        :: abt '[] 'U                          -> Term abt 'U
     MBind_        :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
@@ -477,6 +485,8 @@ data Term :: ([Untyped] -> Untyped -> *) -> Untyped -> * where
     Reject_       ::                                        Term abt 'U
     InjTyped      :: (forall abt . ABT T.Term abt
                                  => abt '[] x)           -> Term abt 'U
+
+    TypeNat_      ::                                        Term abt 'U
 
 
 -- TODO: instance of Traversable21 for Term
@@ -496,7 +506,6 @@ instance Functor21 Term where
     fmap21 f (Array_     e1  e2)    = Array_     (f e1) (f e2)
     fmap21 f (ArrayLiteral_  es)    = ArrayLiteral_     (fmap f es)
     fmap21 f (Datum_     d)         = Datum_     (fmapDatum f d)
-    fmap21 f (TypeSyn_   typ e1)    = TypeSyn_   typ    (f e1)
     fmap21 f (Case_      e1  bs)    = Case_      (f e1) (fmap (fmapBranch f) bs)
     fmap21 f (Dirac_     e1)        = Dirac_     (f e1)
     fmap21 f (MBind_     e1  e2)    = MBind_     (f e1) (f e2)
@@ -528,7 +537,6 @@ instance Foldable21 Term where
     foldMap21 f (Array_     e1 e2)    = f e1 `mappend` f e2
     foldMap21 f (ArrayLiteral_ es)    = F.foldMap f es
     foldMap21 f (Datum_     d)        = foldDatum f d
-    foldMap21 f (TypeSyn_   _  e1)    = f e1
     foldMap21 f (Case_      e1 bs)    = f e1 `mappend` F.foldMap (foldBranch f) bs
     foldMap21 f (Dirac_     e1)       = f e1
     foldMap21 f (MBind_     e1 e2)    = f e1 `mappend` f e2

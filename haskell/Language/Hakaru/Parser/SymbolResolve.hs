@@ -70,20 +70,20 @@ pairPat a b =
     U.PDatum "pair" .  U.PInl $
     U.PKonst a `U.PEt` U.PKonst b `U.PEt` U.PDone
 
-primTypes :: [(Text, Symbol' U.SSing)]
-primTypes =
-    [ ("nat",     TNeu' $ U.SSing SNat)
-    , ("int",     TNeu' $ U.SSing SInt)
-    , ("prob",    TNeu' $ U.SSing SProb)
-    , ("real",    TNeu' $ U.SSing SReal)
-    , ("unit",    TNeu' $ U.SSing sUnit)
-    , ("bool",    TNeu' $ U.SSing sBool)
-    , ("array",   TLam' $ \ [U.SSing a] -> U.SSing $ SArray a)
-    , ("measure", TLam' $ \ [U.SSing a] -> U.SSing $ SMeasure a)
-    , ("either",  TLam' $ \ [U.SSing a, U.SSing b] -> U.SSing $ sEither a b)
-    , ("pair",    TLam' $ \ [U.SSing a, U.SSing b] -> U.SSing $ sPair a b)
-    , ("maybe",   TLam' $ \ [U.SSing a] -> U.SSing $ sMaybe a)
-    ]
+-- primTypes :: [(Text, Symbol' U.SSing)]
+-- primTypes =
+--     [ ("nat",     TNeu' $ U.SSing SNat)
+--     , ("int",     TNeu' $ U.SSing SInt)
+--     , ("prob",    TNeu' $ U.SSing SProb)
+--     , ("real",    TNeu' $ U.SSing SReal)
+--     , ("unit",    TNeu' $ U.SSing sUnit)
+--     , ("bool",    TNeu' $ U.SSing sBool)
+--     , ("array",   TLam' $ \ [U.SSing a] -> U.SSing $ SArray a)
+--     , ("measure", TLam' $ \ [U.SSing a] -> U.SSing $ SMeasure a)
+--     , ("either",  TLam' $ \ [U.SSing a, U.SSing b] -> U.SSing $ sEither a b)
+--     , ("pair",    TLam' $ \ [U.SSing a, U.SSing b] -> U.SSing $ sPair a b)
+--     , ("maybe",   TLam' $ \ [U.SSing a] -> U.SSing $ sMaybe a)
+--     ]
 
 t2 :: (U.AST -> U.AST -> U.AST) -> Symbol U.AST
 t2 f = TLam $ \a -> TLam $ \b -> TNeu (f a b)
@@ -172,6 +172,18 @@ primTable =
     -- Macros
     ,("weibull",     TNeu $ syn $ U.InjTyped $
                      P.lam $ \x -> P.lam $ \y -> P.weibull x y)
+    -- PrimTypes
+    , ("nat",        syn $ U.TypeNat_)
+    -- , ("int",     TNeu $ U.Int)
+    -- , ("prob",    TNeu $ U.SSing SProb)
+    -- , ("real",    TNeu $ U.SSing SReal)
+    -- , ("unit",    TNeu $ U.SSing sUnit)
+    -- , ("bool",    TNeu $ U.SSing sBool)
+    -- , ("array",   TLam' $ \ [U.SSing a] -> U.SSing $ SArray a)
+    -- , ("measure", TLam' $ \ [U.SSing a] -> U.SSing $ SMeasure a)
+    -- , ("either",  TLam' $ \ [U.SSing a, U.SSing b] -> U.SSing $ sEither a b)
+    -- , ("pair",    TLam' $ \ [U.SSing a, U.SSing b] -> U.SSing $ sPair a b)
+    -- , ("maybe",   TLam' $ \ [U.SSing a] -> U.SSing $ sMaybe a)
     ]
 
 primPrimOp0, primPrimOp1, primPrimOp2 :: U.PrimOp -> Symbol U.AST
@@ -381,9 +393,18 @@ symbolResolution symbols ast =
         Nothing -> (U.Var . mkSym) <$> gensym name
         Just a  -> return $ U.Var a
 
-    U.TypeApp a b -> undefined
-    U.TypeFun a b -> undefined
-    U.TypeLam name b -> undefined
+    U.TypeApp a b -> U.TypeApp
+        <$> symbolResolution symbols a
+        <*> symbolResolution symbols b
+
+    U.TypeFun a b -> U.TypeFun
+        <$> symbolResolution symbols a
+        <*> symbolResolution symbols b
+
+    U.TypeLam name x -> do
+        name' <- gensym name
+        U.TypeLam (mkSym name')
+            <$> symbolResolution (insertSymbol name' symbols) x
 
 
 symbolResolutionReducer
@@ -509,8 +530,8 @@ collapseSuperposes es = syn $ U.Superpose_ (fromList $ F.concatMap go es)
     prob_ :: Ratio Integer -> U.AST
     prob_ = syn . U.Literal_ . U.val . U.Prob
 
-makeType :: U.AST' a -> U.SSing
-makeType = undefined
+-- makeType :: U.AST' a -> U.SSing
+-- makeType = error "makeType"
 
 -- makeType :: U.TypeAST' -> U.SSing
 -- makeType (U.TypeVar t) =

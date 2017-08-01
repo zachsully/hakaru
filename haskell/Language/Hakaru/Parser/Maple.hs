@@ -627,13 +627,14 @@ maple2Type (InertArgs Func
                   InertArgs Func
                   [InertName "Konst",
                    InertArgs ExpSeq [y]]]]]]]])
-     = TypeApp "pair" (map maple2Type [x, y])
+     = TypeApp (TypeApp (TypeVar "pair") (maple2Type x))
+               (maple2Type y)
 
 maple2Type (InertArgs Func
             [InertName "HArray",
              InertArgs ExpSeq
              [x]])
-     = TypeApp "array" [maple2Type x]
+     = TypeApp (TypeVar "array") (maple2Type x)
 
 maple2Type (InertArgs Func
             [InertName "HFunction",
@@ -645,7 +646,7 @@ maple2Type (InertArgs Func
             [InertName "HMeasure",
              InertArgs ExpSeq
              [x]])
-     = TypeApp "measure" [maple2Type x]
+     = TypeApp (TypeVar "measure") (maple2Type x)
 
 maple2Type x = error ("TODO: maple2Type " ++ show x)
 

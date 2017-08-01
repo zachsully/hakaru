@@ -173,7 +173,6 @@ mustCheck e = caseVarSyn e (const False) go
     go (U.Array_ _ e1)      = mustCheck' e1
     go (U.ArrayLiteral_ es) = F.all mustCheck es
     go (U.Datum_ _)         = True
-    go (U.TypeSyn_ _ e)    = mustCheck' e
 
     -- TODO: everyone says this, but it seems to me that if we can
     -- infer any of the branches (and check the rest to agree) then
@@ -753,10 +752,6 @@ inferType = inferType_
                _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ)
 
        U.InjTyped t     -> let t' = t in return $ TypedAST (typeOf t') t'
-
-       U.TypeSyn_ (U.SSing typ) e -> undefined
-           -- inferBinder typ e $ \typ2 e2 ->
-           --     return . (TypedAST typ2) $ (undefined :: (ABT Term abt) => abt '[] a)
 
        _   | mustCheck e0 -> ambiguousMustCheck sourceSpan
            | otherwise    -> error "inferType: missing an inferable branch!"
@@ -1537,8 +1532,6 @@ checkType = checkType_
             in case jmEq1 typ0 typ1 of
                  Just Refl -> return t
                  Nothing   -> typeMismatch sourceSpan (Right typ0) (Right typ1)
-
-        U.TypeSyn_ (U.SSing typ) e -> undefined
 
         _   | inferable e0 -> do
                 TypedAST typ' e0' <- inferType_ e0

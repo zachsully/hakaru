@@ -257,7 +257,9 @@ parenthesized = f <$> parens (commaSep expr)
 
 type_var_or_app :: Parser (AST' Text)
 type_var_or_app = do x <- ("array" <$ reserved "array") <|> identifier
-                     option (TypeVar x) (TypeApp x <$> parens (commaSep type_expr))
+                     option (TypeVar x)
+                            (do as <- parens (commaSep type_expr)
+                                return (foldr TypeApp (TypeVar x) as))
 
 type_expr :: Parser (AST' Text)
 type_expr = foldr1 TypeFun <$> sepBy1 (parens type_expr <|> type_var_or_app)

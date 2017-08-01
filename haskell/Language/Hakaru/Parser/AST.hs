@@ -35,9 +35,7 @@ import Language.Hakaru.Syntax.AST
 import qualified Language.Hakaru.Syntax.AST as T
 import Language.Hakaru.Syntax.IClasses
 
-#if __GLASGOW_HASKELL__ < 710
-import Data.Monoid   (Monoid(..))
-#endif
+import Data.Monoid   (Monoid(..),(<>))
 
 import qualified Data.Text as T
 import Text.Parsec (SourcePos)
@@ -187,6 +185,7 @@ data AST' a =
     | TypeSum  [AST' a]
     | TypeProd [AST' a]
     | TypeMeasure (AST' a)
+    | TypeArray (AST' a)
     deriving (Show, Data, Typeable)
 
 
@@ -266,6 +265,8 @@ instance Eq a => Eq (AST' a) where
                                                        a1   == b1
      (TypeLam a0 a1)     == (TypeLam b0 b1)          = a0   == b0 &&
                                                        a1   == b1
+     (TypeMeasure a)     == (TypeMeasure b)          = a    == b
+     (TypeArray a)       == (TypeArray b)            = a    == b
      _                   == _                        = False
 
 
@@ -455,10 +456,10 @@ nameToVar :: Name -> Variable 'U
 nameToVar (Name i h) = Variable h i SU
 
 data Term :: ([Untyped] -> Untyped -> *) -> Untyped -> * where
-    Lam_          :: SSing            -> abt '[ 'U ] 'U  -> Term abt 'U
+    Lam_          :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
     App_          :: abt '[] 'U       -> abt '[]     'U  -> Term abt 'U
     Let_          :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
-    Ann_          :: SSing            -> abt '[]     'U  -> Term abt 'U
+    Ann_          :: abt '[] 'U       -> abt '[]     'U  -> Term abt 'U
     CoerceTo_     :: Some2 Coercion   -> abt '[]     'U  -> Term abt 'U
     UnsafeTo_     :: Some2 Coercion   -> abt '[]     'U  -> Term abt 'U
     PrimOp_       :: PrimOp           -> [abt '[] 'U]    -> Term abt 'U
@@ -486,45 +487,66 @@ data Term :: ([Untyped] -> Untyped -> *) -> Untyped -> * where
     InjTyped      :: (forall abt . ABT T.Term abt
                                  => abt '[] x)           -> Term abt 'U
 
+    TypeApp_      :: abt '[] 'U       -> abt '[] 'U      -> Term abt 'U
+    TypeFun_      :: abt '[] 'U       -> abt '[] 'U      -> Term abt 'U
+    TypeLam_      :: abt '[ 'U ] 'U                      -> Term abt 'U
     TypeNat_      ::                                        Term abt 'U
+    TypeInt_      ::                                        Term abt 'U
+    TypeProb_     ::                                        Term abt 'U
+    TypeReal_     ::                                        Term abt 'U
+    TypeSum_      :: [abt '[] 'U]                        -> Term abt 'U
+    TypeProd_     :: [abt '[] 'U]                        -> Term abt 'U
+    TypeMeasure_  :: abt '[] 'U                          -> Term abt 'U
+    TypeArray_    :: abt '[] 'U                          -> Term abt 'U
 
 
 -- TODO: instance of Traversable21 for Term
 instance Functor21 Term where
-    fmap21 f (Lam_       typ e1)    = Lam_       typ    (f e1)
-    fmap21 f (App_       e1  e2)    = App_       (f e1) (f e2)
-    fmap21 f (Let_       e1  e2)    = Let_       (f e1) (f e2)
-    fmap21 f (Ann_       typ e1)    = Ann_       typ    (f e1)
-    fmap21 f (CoerceTo_  c   e1)    = CoerceTo_  c      (f e1)
-    fmap21 f (UnsafeTo_  c   e1)    = UnsafeTo_  c      (f e1)
-    fmap21 f (PrimOp_    op  es)    = PrimOp_    op     (fmap f es)
-    fmap21 f (ArrayOp_   op  es)    = ArrayOp_   op     (fmap f es)
-    fmap21 f (MeasureOp_ op  es)    = MeasureOp_ op     (fmap f es)
-    fmap21 f (NaryOp_    op  es)    = NaryOp_    op     (fmap f es)
+    fmap21 f (Lam_       typ e1)    = Lam_       (f typ) (f e1)
+    fmap21 f (App_       e1  e2)    = App_       (f e1)  (f e2)
+    fmap21 f (Let_       e1  e2)    = Let_       (f e1)  (f e2)
+    fmap21 f (Ann_       typ e1)    = Ann_       (f typ) (f e1)
+    fmap21 f (CoerceTo_  c   e1)    = CoerceTo_  c       (f e1)
+    fmap21 f (UnsafeTo_  c   e1)    = UnsafeTo_  c       (f e1)
+    fmap21 f (PrimOp_    op  es)    = PrimOp_    op      (fmap f es)
+    fmap21 f (ArrayOp_   op  es)    = ArrayOp_   op      (fmap f es)
+    fmap21 f (MeasureOp_ op  es)    = MeasureOp_ op      (fmap f es)
+    fmap21 f (NaryOp_    op  es)    = NaryOp_    op      (fmap f es)
     fmap21 _ (Literal_   v)         = Literal_   v
-    fmap21 f (Pair_      e1  e2)    = Pair_      (f e1) (f e2)
-    fmap21 f (Array_     e1  e2)    = Array_     (f e1) (f e2)
-    fmap21 f (ArrayLiteral_  es)    = ArrayLiteral_     (fmap f es)
+    fmap21 f (Pair_      e1  e2)    = Pair_      (f e1)  (f e2)
+    fmap21 f (Array_     e1  e2)    = Array_     (f e1)  (f e2)
+    fmap21 f (ArrayLiteral_  es)    = ArrayLiteral_      (fmap f es)
     fmap21 f (Datum_     d)         = Datum_     (fmapDatum f d)
-    fmap21 f (Case_      e1  bs)    = Case_      (f e1) (fmap (fmapBranch f) bs)
+    fmap21 f (Case_      e1  bs)    = Case_      (f e1)  (fmap (fmapBranch f) bs)
     fmap21 f (Dirac_     e1)        = Dirac_     (f e1)
-    fmap21 f (MBind_     e1  e2)    = MBind_     (f e1) (f e2)
-    fmap21 f (Plate_     e1  e2)    = Plate_     (f e1) (f e2)
-    fmap21 f (Chain_     e1  e2 e3) = Chain_     (f e1) (f e2) (f e3)
-    fmap21 f (Integrate_ e1  e2 e3) = Integrate_ (f e1) (f e2) (f e3)
-    fmap21 f (Summate_   e1  e2 e3) = Summate_   (f e1) (f e2) (f e3)
-    fmap21 f (Product_   e1  e2 e3) = Product_   (f e1) (f e2) (f e3)
-    fmap21 f (Bucket_    e1  e2 e3) = Bucket_    (f e1) (f e2) (fmap21 f e3)
-    fmap21 f (Expect_    e1  e2)    = Expect_    (f e1) (f e2)
-    fmap21 f (Observe_   e1  e2)    = Observe_   (f e1) (f e2)
+    fmap21 f (MBind_     e1  e2)    = MBind_     (f e1)  (f e2)
+    fmap21 f (Plate_     e1  e2)    = Plate_     (f e1)  (f e2)
+    fmap21 f (Chain_     e1  e2 e3) = Chain_     (f e1)  (f e2) (f e3)
+    fmap21 f (Integrate_ e1  e2 e3) = Integrate_ (f e1)  (f e2) (f e3)
+    fmap21 f (Summate_   e1  e2 e3) = Summate_   (f e1)  (f e2) (f e3)
+    fmap21 f (Product_   e1  e2 e3) = Product_   (f e1)  (f e2) (f e3)
+    fmap21 f (Bucket_    e1  e2 e3) = Bucket_    (f e1)  (f e2) (fmap21 f e3)
+    fmap21 f (Expect_    e1  e2)    = Expect_    (f e1)  (f e2)
+    fmap21 f (Observe_   e1  e2)    = Observe_   (f e1)  (f e2)
     fmap21 f (Superpose_ es)        = Superpose_ (L.map (f *** f) es)
     fmap21 _ Reject_                = Reject_
     fmap21 _ (InjTyped x)           = InjTyped x
+    fmap21 f (TypeApp_   e1  e2)    = TypeApp_ (f e1) (f e2)
+    fmap21 f (TypeFun_   e1  e2)    = TypeFun_ (f e1) (f e2)
+    fmap21 f (TypeLam_   e1)        = TypeLam_ (f e1)
+    fmap21 _ TypeNat_               = TypeNat_
+    fmap21 _ TypeInt_               = TypeInt_
+    fmap21 _ TypeProb_              = TypeProb_
+    fmap21 _ TypeReal_              = TypeReal_
+    fmap21 f (TypeSum_   es)        = TypeSum_ (fmap f es)
+    fmap21 f (TypeProd_  es)        = TypeProd_ (fmap f es)
+    fmap21 f (TypeMeasure_ e)       = TypeMeasure_ (f e)
+    fmap21 f (TypeArray_ e)         = TypeArray_ (f e)
 
 instance Foldable21 Term where
     foldMap21 f (Lam_       _  e1)    = f e1
-    foldMap21 f (App_       e1 e2)    = f e1 `mappend` f e2
-    foldMap21 f (Let_       e1 e2)    = f e1 `mappend` f e2
+    foldMap21 f (App_       e1 e2)    = f e1 <> f e2
+    foldMap21 f (Let_       e1 e2)    = f e1 <> f e2
     foldMap21 f (Ann_       _  e1)    = f e1
     foldMap21 f (CoerceTo_  _  e1)    = f e1
     foldMap21 f (UnsafeTo_  _  e1)    = f e1
@@ -533,24 +555,35 @@ instance Foldable21 Term where
     foldMap21 f (MeasureOp_ _  es)    = F.foldMap f es
     foldMap21 f (NaryOp_    _  es)    = F.foldMap f es
     foldMap21 _ (Literal_   _)        = mempty
-    foldMap21 f (Pair_      e1 e2)    = f e1 `mappend` f e2
-    foldMap21 f (Array_     e1 e2)    = f e1 `mappend` f e2
+    foldMap21 f (Pair_      e1 e2)    = f e1 <> f e2
+    foldMap21 f (Array_     e1 e2)    = f e1 <> f e2
     foldMap21 f (ArrayLiteral_ es)    = F.foldMap f es
     foldMap21 f (Datum_     d)        = foldDatum f d
-    foldMap21 f (Case_      e1 bs)    = f e1 `mappend` F.foldMap (foldBranch f) bs
+    foldMap21 f (Case_      e1 bs)    = f e1 <> F.foldMap (foldBranch f) bs
     foldMap21 f (Dirac_     e1)       = f e1
-    foldMap21 f (MBind_     e1 e2)    = f e1 `mappend` f e2
-    foldMap21 f (Plate_     e1 e2)    = f e1 `mappend` f e2
-    foldMap21 f (Chain_     e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
-    foldMap21 f (Integrate_ e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
-    foldMap21 f (Summate_   e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
-    foldMap21 f (Product_   e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
-    foldMap21 f (Bucket_    e1 e2 e3) = f e1 `mappend` f e2 `mappend` foldMap21 f e3
-    foldMap21 f (Expect_    e1 e2)    = f e1 `mappend` f e2
-    foldMap21 f (Observe_   e1 e2)    = f e1 `mappend` f e2
-    foldMap21 f (Superpose_ es)       = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) es
+    foldMap21 f (MBind_     e1 e2)    = f e1 <> f e2
+    foldMap21 f (Plate_     e1 e2)    = f e1 <> f e2
+    foldMap21 f (Chain_     e1 e2 e3) = f e1 <> f e2 <> f e3
+    foldMap21 f (Integrate_ e1 e2 e3) = f e1 <> f e2 <> f e3
+    foldMap21 f (Summate_   e1 e2 e3) = f e1 <> f e2 <> f e3
+    foldMap21 f (Product_   e1 e2 e3) = f e1 <> f e2 <> f e3
+    foldMap21 f (Bucket_    e1 e2 e3) = f e1 <> f e2 <> foldMap21 f e3
+    foldMap21 f (Expect_    e1 e2)    = f e1 <> f e2
+    foldMap21 f (Observe_   e1 e2)    = f e1 <> f e2
+    foldMap21 f (Superpose_ es)       = F.foldMap (\(e1,e2) -> f e1 <> f e2) es
     foldMap21 _ Reject_               = mempty
     foldMap21 _ InjTyped{}            = mempty
+    foldMap21 f (TypeApp_   e1  e2)   = f e1 <> f e2
+    foldMap21 f (TypeFun_   e1  e2)   = f e1 <> f e2
+    foldMap21 f (TypeLam_   e1)       = f e1
+    foldMap21 _ TypeNat_              = mempty
+    foldMap21 _ TypeInt_              = mempty
+    foldMap21 _ TypeProb_             = mempty
+    foldMap21 _ TypeReal_             = mempty
+    foldMap21 f (TypeSum_   es)       = F.foldMap f es
+    foldMap21 f (TypeProd_  es)       = F.foldMap f es
+    foldMap21 f (TypeMeasure_ e)      = f e
+    foldMap21 f (TypeArray_ e)        = f e
 
 type U_ABT    = MetaABT SourceSpan Term
 type AST      = U_ABT '[] 'U

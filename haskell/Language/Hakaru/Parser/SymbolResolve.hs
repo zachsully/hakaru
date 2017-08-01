@@ -70,21 +70,6 @@ pairPat a b =
     U.PDatum "pair" .  U.PInl $
     U.PKonst a `U.PEt` U.PKonst b `U.PEt` U.PDone
 
--- primTypes :: [(Text, Symbol' U.SSing)]
--- primTypes =
---     [ ("nat",     TNeu' $ U.SSing SNat)
---     , ("int",     TNeu' $ U.SSing SInt)
---     , ("prob",    TNeu' $ U.SSing SProb)
---     , ("real",    TNeu' $ U.SSing SReal)
---     , ("unit",    TNeu' $ U.SSing sUnit)
---     , ("bool",    TNeu' $ U.SSing sBool)
---     , ("array",   TLam' $ \ [U.SSing a] -> U.SSing $ SArray a)
---     , ("measure", TLam' $ \ [U.SSing a] -> U.SSing $ SMeasure a)
---     , ("either",  TLam' $ \ [U.SSing a, U.SSing b] -> U.SSing $ sEither a b)
---     , ("pair",    TLam' $ \ [U.SSing a, U.SSing b] -> U.SSing $ sPair a b)
---     , ("maybe",   TLam' $ \ [U.SSing a] -> U.SSing $ sMaybe a)
---     ]
-
 t2 :: (U.AST -> U.AST -> U.AST) -> Symbol U.AST
 t2 f = TLam $ \a -> TLam $ \b -> TNeu (f a b)
 
@@ -173,17 +158,19 @@ primTable =
     ,("weibull",     TNeu $ syn $ U.InjTyped $
                      P.lam $ \x -> P.lam $ \y -> P.weibull x y)
     -- PrimTypes
-    , ("nat",        syn $ U.TypeNat_)
-    -- , ("int",     TNeu $ U.Int)
-    -- , ("prob",    TNeu $ U.SSing SProb)
-    -- , ("real",    TNeu $ U.SSing SReal)
-    -- , ("unit",    TNeu $ U.SSing sUnit)
-    -- , ("bool",    TNeu $ U.SSing sBool)
-    -- , ("array",   TLam' $ \ [U.SSing a] -> U.SSing $ SArray a)
-    -- , ("measure", TLam' $ \ [U.SSing a] -> U.SSing $ SMeasure a)
-    -- , ("either",  TLam' $ \ [U.SSing a, U.SSing b] -> U.SSing $ sEither a b)
-    -- , ("pair",    TLam' $ \ [U.SSing a, U.SSing b] -> U.SSing $ sPair a b)
-    -- , ("maybe",   TLam' $ \ [U.SSing a] -> U.SSing $ sMaybe a)
+    , ("nat",        TNeu . syn $ U.TypeNat_)
+    , ("int",        TNeu . syn $ U.TypeInt_)
+    , ("prob",       TNeu . syn $ U.TypeProb_)
+    , ("real",       TNeu . syn $ U.TypeReal_)
+    , ("unit",       TNeu . syn $ U.TypeSum_ [ syn $ U.TypeProd_ [] ])
+    , ("bool",       TNeu (syn $ U.TypeSum_ [syn $ U.TypeProd_ []
+                                            ,syn $ U.TypeProd_ []]))
+    , ("measrue",    TLam $ TNeu . syn . U.TypeMeasure_)
+    , ("array",      TLam $ TNeu . syn . U.TypeArray_)
+    , ("either",     TLam $ \x -> TLam $ \y -> TNeu . syn $ U.TypeSum_ [x,y])
+    , ("pair",       TLam $ \x -> TLam $ \y -> TNeu . syn $
+                     U.TypeSum_ [syn (U.TypeProd_ [x,y])])
+    , ("maybe",      TLam $ \x -> TNeu . syn $ U.TypeSum_ [x,syn (U.TypeProd_ [])])
     ]
 
 primPrimOp0, primPrimOp1, primPrimOp2 :: U.PrimOp -> Symbol U.AST
@@ -220,16 +207,18 @@ cNat2Real = CCons (Signed HRing_Int) continuous
 
 unit_ :: U.AST
 unit_ =
-    syn $ U.Ann_ (U.SSing sUnit)
+    syn $ U.Ann_ (syn $ U.TypeSum_ [syn $ U.TypeProd_ []])
                  (syn $ U.Datum_ (U.Datum "unit" . U.Inl $ U.Done))
 
 true_, false_ :: U.AST
 true_  =
-    syn $ U.Ann_ (U.SSing sBool)
+    syn $ U.Ann_ (syn $ U.TypeSum_ [syn $ U.TypeProd_ []
+                                   ,syn $ U.TypeProd_ []])
                  (syn $ U.Datum_ . U.Datum "true"  . U.Inl $ U.Done)
 
 false_ =
-    syn $ U.Ann_ (U.SSing sBool)
+    syn $ U.Ann_ (syn $ U.TypeSum_ [syn $ U.TypeProd_ []
+                                   ,syn $ U.TypeProd_ []])
                  (syn $ U.Datum_ . U.Datum "false" . U.Inr . U.Inl $ U.Done)
 
 unsafeFrom_ :: U.AST -> U.AST
@@ -530,23 +519,6 @@ collapseSuperposes es = syn $ U.Superpose_ (fromList $ F.concatMap go es)
     prob_ :: Ratio Integer -> U.AST
     prob_ = syn . U.Literal_ . U.val . U.Prob
 
--- makeType :: U.AST' a -> U.SSing
--- makeType = error "makeType"
-
--- makeType :: U.TypeAST' -> U.SSing
--- makeType (U.TypeVar t) =
---     case lookup t primTypes of
---     Just (TNeu' t') -> t'
---     _               -> error $ "Type " ++ show t ++ " is not a primitive"
--- makeType (U.TypeFun f x) =
---     case (makeType f, makeType x) of
---     (U.SSing f', U.SSing x') -> U.SSing $ SFun f' x'
--- makeType (U.TypeApp f args) =
---     case lookup f primTypes of
---     Just (TLam' f') -> f' (map makeType args)
---     _               -> error $ "Type " ++ show f ++ " is not a primitive"
-
-
 makePattern :: U.Pattern' U.Name -> U.Pattern
 makePattern U.PWild'        = U.PWild
 makePattern (U.PVar' name)  =
@@ -603,7 +575,7 @@ makeAST ast =
     U.Var (TNeu e) -> e
     U.Lam s typ e1 ->
         withName "U.Lam" s $ \name ->
-            syn $ U.Lam_ (makeType typ) (bind name $ makeAST e1)
+            syn $ U.Lam_ (makeAST typ) (bind name $ makeAST e1)
     U.App e1 e2 ->
         syn $ U.App_ (makeAST e1) (makeAST e2)
     U.Let s e1 e2 ->
@@ -611,7 +583,7 @@ makeAST ast =
             syn $ U.Let_ (makeAST e1) (bind name $ makeAST e2)
     U.If e1 e2 e3 ->
         syn $ U.Case_ (makeAST e1) [(makeTrue e2), (makeFalse e3)]
-    U.Ann e typ       -> syn $ U.Ann_ (makeType typ) (makeAST e)
+    U.Ann e typ       -> syn $ U.Ann_ (makeAST typ) (makeAST e)
     U.Infinity'       -> syn $ U.PrimOp_ U.Infinity []
     U.ULiteral v      -> syn $ U.Literal_  (U.val v)
     U.NaryOp op es    -> syn $ U.NaryOp_ op (map makeAST es)
@@ -649,6 +621,7 @@ makeAST ast =
             syn $ U.Expect_ (makeAST e1) (bind name $ makeAST e2)
     U.Msum es -> collapseSuperposes (map makeAST es)
     U.WithMeta a meta -> withMetadata meta (makeAST a)
+    e -> error "TODO: missing case makeAST"
 
 withName :: String -> Symbol U.AST -> (Variable 'U.U -> r) -> r
 withName fun s k =

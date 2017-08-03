@@ -455,3 +455,10 @@ instance (SingI a) => SingI ('K a) where
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
+
+{- Citations
+
+Eisenberg, Richard A. and Weirich, Stephanie. "Dependently Typed Programming
+  with Singletons". Haskell. 2012.
+
+-}

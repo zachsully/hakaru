@@ -1811,3 +1811,10 @@ isType _ ast = caseVarSyn ast funVar funSyn
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
+
+{- Citations
+
+Guillemette, Louis-Julien and Stefan Monnier. "A Type-Perserving Compiler in
+  Haskell". ICFP. 2008.
+
+-}

@@ -288,7 +288,7 @@ data_expr = do
 type_syn_expr :: Parser (AST' Text)
 type_syn_expr =
     reserved "type" *>
-      (TypeLam <$> identifier <* reservedOp "=" <*> type_expr)
+     (TypeLam <$> identifier <* reservedOp "=" <*> type_expr)
 
 --------------------------------------------------------------------------------
 

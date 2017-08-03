@@ -92,6 +92,14 @@ instance SingI1 ('KProxy :: KProxy Hakaru) where
 -}
 
 ----------------------------------------------------------------
+-- Hakaru Sorts
+
+-- | Singleton types for the sorts of Hakaru kinds
+data instance Sing (a :: HkKind) where
+    SStar :: Sing 'HkStar
+    SKFun :: !(Sing a) -> !(Sing b) -> Sing (a ':~> b)
+
+----------------------------------------------------------------
 -- BUG: data family instances must be fully saturated, but since
 -- these are GADTs, the name of the parameter is irrelevant. However,
 -- using a wildcard causes GHC to panic. cf.,
@@ -156,10 +164,10 @@ instance Show1 (Sing :: Hakaru -> *) where
         SData     s1 s2 -> showParen_11 p "SData"     s1 s2
 
 
-instance SingI 'HNat                            where sing = SNat 
-instance SingI 'HInt                            where sing = SInt 
-instance SingI 'HProb                           where sing = SProb 
-instance SingI 'HReal                           where sing = SReal 
+instance SingI 'HNat                            where sing = SNat
+instance SingI 'HInt                            where sing = SInt
+instance SingI 'HProb                           where sing = SProb
+instance SingI 'HReal                           where sing = SReal
 instance (SingI a) => SingI ('HMeasure a)       where sing = SMeasure sing
 instance (SingI a) => SingI ('HArray a)         where sing = SArray sing
 instance (SingI a, SingI b) => SingI (a ':-> b) where sing = SFun sing sing
@@ -310,7 +318,7 @@ sSymbol_Maybe  = SingSymbol
 someSSymbol :: String -> (forall s . Sing (s :: Symbol) -> k) -> k
 someSSymbol s k = case TL.someSymbolVal s of { TL.SomeSymbol (_::Proxy s) -> k (SingSymbol :: Sing s) }
 
-ssymbolVal :: forall s. Sing (s :: Symbol) -> String 
+ssymbolVal :: forall s. Sing (s :: Symbol) -> String
 ssymbolVal SingSymbol = TL.symbolVal (Proxy :: Proxy s)
 
 instance Eq (Sing (s :: Symbol)) where

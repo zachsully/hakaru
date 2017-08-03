@@ -194,6 +194,19 @@ mustCheck e = caseVarSyn e (const False) go
     go (U.Expect_ _ e2)      = mustCheck' e2
     go (U.Observe_  e1  _)   = mustCheck  e1
     go U.InjTyped{}          = False
+    -- in most cases, we must check that our types are kind *
+    go (U.TypeApp_ _ _) = True
+    go (U.TypeFun_ _ _) = True
+    go (U.TypeLam_ e) = mustCheck' e
+    go U.TypeNat_ = False
+    go U.TypeInt_ = False
+    go U.TypeProb_ = False
+    go U.TypeReal_ = False
+    go (U.TypeSum_ es) = F.all mustCheck es
+    go (U.TypeProd_ es) = F.all mustCheck es
+    go (U.TypeMeasure_ e) = mustCheck e
+    go (U.TypeArray_ e) = mustCheck e
+
 
 mustCheck'
     :: MetaABT U.SourceSpan U.Term '[ 'U.U ] 'U.U
@@ -754,6 +767,18 @@ inferType = inferType_
                _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ)
 
        U.InjTyped t     -> let t' = t in return $ TypedAST (typeOf t') t'
+
+       U.TypeApp_ _ _ -> undefined
+       U.TypeFun_ _ _ -> undefined
+       U.TypeLam_ _ -> undefined
+       U.TypeNat_ -> undefined
+       U.TypeInt_ -> undefined
+       U.TypeProb_ -> undefined
+       U.TypeReal_ -> undefined
+       U.TypeSum_ _ -> undefined
+       U.TypeProd_ _ -> undefined
+       U.TypeMeasure_ _ -> undefined
+       U.TypeArray_ _ -> undefined
 
        _   | mustCheck e0 -> ambiguousMustCheck sourceSpan
            | otherwise    -> error "inferType: missing an inferable branch!"
@@ -1536,6 +1561,18 @@ checkType = checkType_
                  Just Refl -> return t
                  Nothing   -> typeMismatch sourceSpan (Right typ0) (Right typ1)
 
+        U.TypeApp_ _ _ -> undefined
+        U.TypeFun_ _ _ -> undefined
+        U.TypeLam_ _ -> undefined
+        U.TypeNat_ -> undefined
+        U.TypeInt_ -> undefined
+        U.TypeProb_ -> undefined
+        U.TypeReal_ -> undefined
+        U.TypeSum_ _ -> undefined
+        U.TypeProd_ _ -> undefined
+        U.TypeMeasure_ _ -> undefined
+        U.TypeArray_ _ -> undefined
+
         _   | inferable e0 -> do
                 TypedAST typ' e0' <- inferType_ e0
                 mode <- getMode
@@ -1751,7 +1788,26 @@ checkOrUnsafeCoerce s e typA typB =
             return $ syn (MBind :$ e :* e2' :* End)
           (_ ,  _) -> typeMismatch s (Right typB) (Right typA)
 
+----------------------------------------------------------------
+-- Type stuff
 
+isType :: Ctx -> U.AST -> Bool
+isType _ ast = caseVarSyn ast funVar funSyn
+  where funVar = const False
+        funSyn = const False
+  -- case ast of
+  --   U.TypeApp_ _ _ -> True
+  --   U.TypeFun_ _ _ -> True
+  --   U.TypeLam_ _ -> True
+  --   U.TypeNat_ -> True
+  --   U.TypeInt_ -> True
+  --   U.TypeProb_ -> True
+  --   U.TypeReal_ -> True
+  --   U.TypeSum_ _ -> True
+  --   U.TypeProd_ _ -> True
+  --   U.TypeMeasure_ _ -> True
+  --   U.TypeArray_ _ -> True
+  --   _ -> False
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

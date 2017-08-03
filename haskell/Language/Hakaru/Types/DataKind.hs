@@ -22,10 +22,13 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Types.DataKind
     (
+    -- * Hakaru kinds
+      HkKind(..)
+
     -- * The core definition of Hakaru types
-      Hakaru(..)
+    , Hakaru(..)
     , HakaruFun(..)
-    , HakaruCon(..) 
+    , HakaruCon(..)
     -- *
     , Symbol
     , Code
@@ -40,6 +43,21 @@ import Data.Typeable (Typeable)
 import GHC.TypeLits (Symbol)
 
 ----------------------------------------------------------------
+-- Kinds
+
+infixr 0 :~>
+
+data HkKind
+    = HkStar               -- ^ Primitive Hakaru types
+    | !HkKind :~> !HkKind  -- ^ Hakaru type abstractions
+
+
+deriving instance Typeable 'HkStar
+deriving instance Typeable '(:~>)
+
+
+----------------------------------------------------------------
+-- Types
 -- BUG: can't define the fixity of @(':->)@
 infixr 0 :->
 

@@ -456,10 +456,10 @@ nameToVar :: Name -> Variable 'U
 nameToVar (Name i h) = Variable h i SU
 
 data Term :: ([Untyped] -> Untyped -> *) -> Untyped -> * where
-    Lam_          :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
+    Lam_          :: SSing            -> abt '[ 'U ] 'U  -> Term abt 'U
     App_          :: abt '[] 'U       -> abt '[]     'U  -> Term abt 'U
     Let_          :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
-    Ann_          :: abt '[] 'U       -> abt '[]     'U  -> Term abt 'U
+    Ann_          :: SSing       -> abt '[]     'U  -> Term abt 'U
     CoerceTo_     :: Some2 Coercion   -> abt '[]     'U  -> Term abt 'U
     UnsafeTo_     :: Some2 Coercion   -> abt '[]     'U  -> Term abt 'U
     PrimOp_       :: PrimOp           -> [abt '[] 'U]    -> Term abt 'U
@@ -489,7 +489,7 @@ data Term :: ([Untyped] -> Untyped -> *) -> Untyped -> * where
 
     TypeApp_      :: abt '[] 'U       -> abt '[] 'U      -> Term abt 'U
     TypeFun_      :: abt '[] 'U       -> abt '[] 'U      -> Term abt 'U
-    TypeLam_      :: abt '[ 'U ] 'U                      -> Term abt 'U
+    TypeLam_      :: SSing            -> abt '[ 'U ] 'U  -> Term abt 'U
     TypeNat_      ::                                        Term abt 'U
     TypeInt_      ::                                        Term abt 'U
     TypeProb_     ::                                        Term abt 'U
@@ -502,10 +502,10 @@ data Term :: ([Untyped] -> Untyped -> *) -> Untyped -> * where
 
 -- TODO: instance of Traversable21 for Term
 instance Functor21 Term where
-    fmap21 f (Lam_       typ e1)    = Lam_       (f typ) (f e1)
+    fmap21 f (Lam_       typ e1)    = Lam_       typ     (f e1)
     fmap21 f (App_       e1  e2)    = App_       (f e1)  (f e2)
     fmap21 f (Let_       e1  e2)    = Let_       (f e1)  (f e2)
-    fmap21 f (Ann_       typ e1)    = Ann_       (f typ) (f e1)
+    fmap21 f (Ann_       typ e1)    = Ann_       typ     (f e1)
     fmap21 f (CoerceTo_  c   e1)    = CoerceTo_  c       (f e1)
     fmap21 f (UnsafeTo_  c   e1)    = UnsafeTo_  c       (f e1)
     fmap21 f (PrimOp_    op  es)    = PrimOp_    op      (fmap f es)
@@ -533,7 +533,7 @@ instance Functor21 Term where
     fmap21 _ (InjTyped x)           = InjTyped x
     fmap21 f (TypeApp_   e1  e2)    = TypeApp_ (f e1) (f e2)
     fmap21 f (TypeFun_   e1  e2)    = TypeFun_ (f e1) (f e2)
-    fmap21 f (TypeLam_   e1)        = TypeLam_ (f e1)
+    fmap21 f (TypeLam_   typ e1)    = TypeLam_ typ    (f e1)
     fmap21 _ TypeNat_               = TypeNat_
     fmap21 _ TypeInt_               = TypeInt_
     fmap21 _ TypeProb_              = TypeProb_
@@ -575,7 +575,7 @@ instance Foldable21 Term where
     foldMap21 _ InjTyped{}            = mempty
     foldMap21 f (TypeApp_   e1  e2)   = f e1 <> f e2
     foldMap21 f (TypeFun_   e1  e2)   = f e1 <> f e2
-    foldMap21 f (TypeLam_   e1)       = f e1
+    foldMap21 f (TypeLam_   _   e1)   = f e1
     foldMap21 _ TypeNat_              = mempty
     foldMap21 _ TypeInt_              = mempty
     foldMap21 _ TypeProb_             = mempty

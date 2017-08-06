@@ -25,6 +25,7 @@ import           Data.Proxy                      (KProxy(..))
 import           Data.List.NonEmpty              as L (NonEmpty(..), fromList)
 import           Language.Hakaru.Types.Coercion
 import           Language.Hakaru.Types.DataKind  hiding (Symbol)
+import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.Types.HClasses
 import qualified Language.Hakaru.Syntax.AST      as T
 import           Language.Hakaru.Syntax.ABT      hiding (fromVarSet)
@@ -34,13 +35,13 @@ import qualified Language.Hakaru.Parser.AST   as U
 import           Language.Hakaru.Evaluation.Coalesce (coalesce)
 import qualified Language.Hakaru.Syntax.Prelude  as P
 
-data Symbol a
-    = TLam (a -> Symbol a)
-    | TNeu a
+data Symbol syn
+    = TLam (syn -> Symbol syn)
+    | TNeu syn
 
-data Symbol' a
-    = TLam' ([a] -> a)
-    | TNeu' a
+data Symbol' syn
+    = TLam' ([syn] -> syn)
+    | TNeu' syn
 
 singleton :: a -> L.NonEmpty a
 singleton x = x :| []
@@ -206,18 +207,16 @@ cNat2Real = CCons (Signed HRing_Int) continuous
 
 unit_ :: U.AST
 unit_ =
-    syn $ U.Ann_ (syn $ U.TypeSum_ [syn $ U.TypeProd_ []])
+    syn $ U.Ann_ (U.SSing sUnit)
                  (syn $ U.Datum_ (U.Datum "unit" . U.Inl $ U.Done))
 
 true_, false_ :: U.AST
 true_  =
-    syn $ U.Ann_ (syn $ U.TypeSum_ [syn $ U.TypeProd_ []
-                                   ,syn $ U.TypeProd_ []])
+    syn $ U.Ann_ (U.SSing sBool)
                  (syn $ U.Datum_ . U.Datum "true"  . U.Inl $ U.Done)
 
 false_ =
-    syn $ U.Ann_ (syn $ U.TypeSum_ [syn $ U.TypeProd_ []
-                                   ,syn $ U.TypeProd_ []])
+    syn $ U.Ann_ (U.SSing sBool)
                  (syn $ U.Datum_ . U.Datum "false" . U.Inr . U.Inl $ U.Done)
 
 unsafeFrom_ :: U.AST -> U.AST
@@ -542,6 +541,34 @@ collapseSuperposes es = syn $ U.Superpose_ (fromList $ F.concatMap go es)
     prob_ :: Ratio Integer -> U.AST
     prob_ = syn . U.Literal_ . U.val . U.Prob
 
+makeSing :: U.AST' (Symbol U.AST) -> U.SSing
+makeSing = const (U.SSing sBool)
+-- makeType (U.TypeVar t) =
+--   case lookup t primTypes of
+--     Just (TNeu' t') -> t'
+--     _               -> error $ "Type " ++ show t ++ " is not a primitive"
+-- makeType (U.TypeFun f x) =
+--   case (makeType f, makeType x) of
+--     (U.SSing f', U.SSing x') -> U.SSing $ SFun f' x'
+-- makeType (U.TypeApp f args) =
+--   case lookup f primTypes of
+--     Just (TLam' f') -> f' (map makeType args)
+--     _               -> error $ "Type " ++ show f ++ " is not a primitive"
+
+    -- | TypeVar a
+    -- | TypeApp (AST' a) (AST' a)
+    -- | TypeFun (AST' a) (AST' a)
+    -- | TypeLam a (AST' a)  -- for now type level lambda will always be of kind * -> *
+    -- | TypeNat
+    -- | TypeInt
+    -- | TypeProb
+    -- | TypeReal
+    -- | TypeSum  [AST' a]
+    -- | TypeProd [AST' a]
+    -- | TypeMeasure (AST' a)
+    -- | TypeArray (AST' a)
+
+
 makePattern :: U.Pattern' U.Name -> U.Pattern
 makePattern U.PWild'        = U.PWild
 makePattern (U.PVar' name)  =
@@ -598,7 +625,7 @@ makeAST ast =
     U.Var (TNeu e) -> e
     U.Lam s typ e1 ->
         withName "U.Lam" s $ \name ->
-            syn $ U.Lam_ (makeAST typ) (bind name $ makeAST e1)
+            syn $ U.Lam_ (makeSing typ) (bind name $ makeAST e1)
     U.App e1 e2 ->
         syn $ U.App_ (makeAST e1) (makeAST e2)
     U.Let s e1 e2 ->
@@ -606,7 +633,7 @@ makeAST ast =
             syn $ U.Let_ (makeAST e1) (bind name $ makeAST e2)
     U.If e1 e2 e3 ->
         syn $ U.Case_ (makeAST e1) [(makeTrue e2), (makeFalse e3)]
-    U.Ann e typ       -> syn $ U.Ann_ (makeAST typ) (makeAST e)
+    U.Ann e typ       -> syn $ U.Ann_ (makeSing typ) (makeAST e)
     U.Infinity'       -> syn $ U.PrimOp_ U.Infinity []
     U.ULiteral v      -> syn $ U.Literal_  (U.val v)
     U.NaryOp op es    -> syn $ U.NaryOp_ op (map makeAST es)
@@ -652,7 +679,7 @@ makeAST ast =
     U.TypeFun e1 e2 -> syn $ U.TypeFun_ (makeAST e1) (makeAST e2)
     U.TypeLam s e1 ->
         withName "U.TypeLam" s $ \name ->
-            syn $ U.TypeLam_ (bind name $ makeAST e1)
+            syn $ U.TypeLam_ (U.SSing SStar) (bind name $ makeAST e1)
     U.TypeNat -> syn U.TypeNat_
     U.TypeInt -> syn U.TypeInt_
     U.TypeProb -> syn U.TypeProb_

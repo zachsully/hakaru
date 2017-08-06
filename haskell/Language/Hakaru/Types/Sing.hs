@@ -92,14 +92,6 @@ instance SingI1 ('KProxy :: KProxy Hakaru) where
 -}
 
 ----------------------------------------------------------------
--- Hakaru Sorts
-
--- | Singleton types for the sorts of Hakaru kinds
-data instance Sing (a :: HkKind) where
-    SStar :: Sing 'HkStar
-    SKFun :: !(Sing a) -> !(Sing b) -> Sing (a ':~> b)
-
-----------------------------------------------------------------
 -- BUG: data family instances must be fully saturated, but since
 -- these are GADTs, the name of the parameter is irrelevant. However,
 -- using a wildcard causes GHC to panic. cf.,
@@ -108,6 +100,7 @@ data instance Sing (a :: HkKind) where
 -- | Singleton types for the kind of Hakaru types. We need to use
 -- this instead of 'Proxy' in order to implement 'jmEq1'.
 data instance Sing (a :: Hakaru) where
+     -- Hakaru types
     SNat     :: Sing 'HNat
     SInt     :: Sing 'HInt
     SProb    :: Sing 'HProb
@@ -118,6 +111,9 @@ data instance Sing (a :: Hakaru) where
     SFun     :: !(Sing a) -> !(Sing b) -> Sing (a ':-> b)
     SData    :: !(Sing t) -> !(Sing (Code t)) -> Sing (HData' t)
 
+    -- Hakaru kinds
+    SStar :: Sing 'HkStar
+    SKFun :: !(Sing a) -> !(Sing b) -> Sing (a ':=> b)
 
 instance Eq (Sing (a :: Hakaru)) where
     (==) = eq1
@@ -142,6 +138,11 @@ instance JmEq1 (Sing :: Hakaru -> *) where
         jmEq1 con1  con2  >>= \Refl ->
         jmEq1 code1 code2 >>= \Refl ->
         Just Refl
+    jmEq1 SStar             SStar             = Just Refl
+    jmEq1 (SKFun     a1 a2) (SKFun     b1 b2) =
+        jmEq1 a1 b1 >>= \Refl ->
+        jmEq1 a2 b2 >>= \Refl ->
+        Just Refl
     jmEq1 _ _ = Nothing
 
 
@@ -162,6 +163,9 @@ instance Show1 (Sing :: Hakaru -> *) where
         SArray    s1    -> showParen_1  p "SArray"    s1
         SFun      s1 s2 -> showParen_11 p "SFun"      s1 s2
         SData     s1 s2 -> showParen_11 p "SData"     s1 s2
+        SStar           -> showString     "SStar"
+        SKFun     s1 s2 -> showParen_11 p "SKFun"     s1 s2
+
 
 
 instance SingI 'HNat                            where sing = SNat
@@ -174,6 +178,9 @@ instance (SingI a, SingI b) => SingI (a ':-> b) where sing = SFun sing sing
 -- N.B., must use @(~)@ to delay the use of the type family (it's illegal to put it inline in the instance head).
 instance (sop ~ Code t, SingI t, SingI sop) => SingI ('HData t sop) where
     sing = SData sing sing
+instance SingI 'HkStar                          where sing = SStar
+instance (SingI a, SingI b) => SingI (a ':=> b) where sing = SKFun sing sing
+
 
 
 ----------------------------------------------------------------

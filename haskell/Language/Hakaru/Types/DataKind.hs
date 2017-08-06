@@ -22,11 +22,8 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Types.DataKind
     (
-    -- * Hakaru kinds
-      HkKind(..)
-
-    -- * The core definition of Hakaru types
-    , Hakaru(..)
+    -- * The core definition of Hakaru types and kinds
+      Hakaru(..)
     , HakaruFun(..)
     , HakaruCon(..)
     -- *
@@ -45,21 +42,15 @@ import GHC.TypeLits (Symbol)
 ----------------------------------------------------------------
 -- Kinds
 
-infixr 0 :~>
 
 data HkKind
-    = HkStar               -- ^ Primitive Hakaru types
-    | !HkKind :~> !HkKind  -- ^ Hakaru type abstractions
-
-
-deriving instance Typeable 'HkStar
-deriving instance Typeable '(:~>)
 
 
 ----------------------------------------------------------------
--- Types
+-- Types and Kinds
 -- BUG: can't define the fixity of @(':->)@
-infixr 0 :->
+infixr 0 :=> -- kind arrow
+infixr 0 :-> -- type arrow
 
 -- | The universe\/kind of Hakaru types.
 data Hakaru
@@ -92,6 +83,12 @@ data Hakaru
     -- specified by a \"tag\" (the @HakaruCon@) which names the type, and a sum-of-product representation of the type itself.
     | HData !HakaruCon [[HakaruFun]]
 
+    -- | The kind primitive Hakaru types
+    | HkStar
+
+    -- | The kind of Hakaru type abstractions
+    | !Hakaru :=> !Hakaru
+
 
 -- N.B., The @Proxy@ type from "Data.Proxy" is polykinded, so it
 -- works for @Hakaru@ too. However, it is _not_ Typeable!
@@ -109,7 +106,8 @@ deriving instance Typeable 'HMeasure
 deriving instance Typeable 'HArray
 deriving instance Typeable '(:->)
 deriving instance Typeable 'HData
-
+deriving instance Typeable 'HkStar
+deriving instance Typeable '(:=>)
 
 ----------------------------------------------------------------
 -- | The identity and constant functors on 'Hakaru'. This gives

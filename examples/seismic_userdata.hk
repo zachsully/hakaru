@@ -1,7 +1,7 @@
-data vec3(a):
+data vec3(a star):
     mkVec3(a,a,a)
 
-data mat33(a):
+data mat33(a star):
     mkMat33(a,a,a
            ,a,a,a
 	   ,a,a,a)

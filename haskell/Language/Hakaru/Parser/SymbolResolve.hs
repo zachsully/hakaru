@@ -388,10 +388,11 @@ symbolResolution symbols ast =
         <$> symbolResolution symbols a
         <*> symbolResolution symbols b
 
-    U.TypeLam name x -> do
+    U.TypeLam name kind x -> do
         name' <- gensym name
         U.TypeLam (mkSym name')
-            <$> symbolResolution (insertSymbol name' symbols) x
+            <$> symbolResolution symbols kind
+            <*> symbolResolution (insertSymbol name' symbols) x
 
     U.TypeNat -> return U.TypeNat
     U.TypeInt -> return U.TypeInt
@@ -502,7 +503,7 @@ normAST ast =
     U.TypeVar a               -> U.TypeVar a
     U.TypeApp     e1 e2       -> U.TypeApp (normAST e1) (normAST e2)
     U.TypeFun     e1 e2       -> U.TypeFun (normAST e1) (normAST e2)
-    U.TypeLam n   e1          -> U.TypeLam n (normAST e1)
+    U.TypeLam n k e1          -> U.TypeLam n k (normAST e1)
     U.TypeNat                 -> U.TypeNat
     U.TypeInt                 -> U.TypeInt
     U.TypeProb                -> U.TypeProb
@@ -542,7 +543,11 @@ collapseSuperposes es = syn $ U.Superpose_ (fromList $ F.concatMap go es)
     prob_ = syn . U.Literal_ . U.val . U.Prob
 
 makeSing :: U.AST' (Symbol U.AST) -> U.SSing
-makeSing = const (U.SSing sBool)
+makeSing U.TypeNat  = U.SSing SNat
+makeSing U.TypeInt  = U.SSing SNat
+makeSing U.TypeProb = U.SSing SNat
+makeSing U.TypeReal = U.SSing SNat
+makeSing _ = error $ "makeSing: _ is neither a kind or type"
 -- makeType (U.TypeVar t) =
 --   case lookup t primTypes of
 --     Just (TNeu' t') -> t'
@@ -677,9 +682,9 @@ makeAST ast =
     U.TypeVar (TNeu e) -> e
     U.TypeApp e1 e2 -> syn $ U.TypeApp_ (makeAST e1) (makeAST e2)
     U.TypeFun e1 e2 -> syn $ U.TypeFun_ (makeAST e1) (makeAST e2)
-    U.TypeLam s e1 ->
+    U.TypeLam s kind e1 ->
         withName "U.TypeLam" s $ \name ->
-            syn $ U.TypeLam_ (U.SSing SStar) (bind name $ makeAST e1)
+            syn $ U.TypeLam_ (makeSing kind) (bind name $ makeAST e1)
     U.TypeNat -> syn U.TypeNat_
     U.TypeInt -> syn U.TypeInt_
     U.TypeProb -> syn U.TypeProb_

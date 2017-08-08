@@ -49,7 +49,7 @@ module Language.Hakaru.Syntax.AST
     , MeasureOp(..)
     -- * Constant values
     , Literal(..)
-    
+
     -- * implementation details
     , foldMapPairs
     , traversePairs
@@ -639,7 +639,7 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
         ] ('HMeasure b)
 
     -- TODO: unify Plate and Chain as @sequence@ a~la traversable?
-    Plate :: SCon 
+    Plate :: SCon
         '[ LC 'HNat
         , '( '[ 'HNat ], 'HMeasure a)
         ] ('HMeasure ('HArray a))
@@ -694,6 +694,9 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
 
     -- TODO: add the four ops for disintegration
     Observe :: SCon '[ LC ('HMeasure a), LC a ] ('HMeasure a)
+
+    TyLam_ :: SCon '[ '( '[ a ], b) ] (a ':=> b)
+    TyApp_ :: SCon '[ LC (a ':=> b), LC a] b
 
 
 deriving instance Eq   (SCon args a)
@@ -795,7 +798,7 @@ data Term :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         -> !(abt '[] 'HNat)
         -> Reducer abt '[] a
         -> Term abt a
-           
+
     -- -- User-defined data types
     -- BUG: even though the 'Datum' type has a single constructor, we get a warning about not being able to UNPACK it in 'Datum_'... wtf?
     --

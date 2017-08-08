@@ -197,7 +197,7 @@ mustCheck e = caseVarSyn e (const False) go
     -- in most cases, we must check that our types are kind *
     go (U.TypeApp_ _ _) = True
     go (U.TypeFun_ _ _) = True
-    go (U.TypeLam_ e) = mustCheck' e
+    go (U.TypeLam_ _ e) = mustCheck' e
     go U.TypeNat_ = False
     go U.TypeInt_ = False
     go U.TypeProb_ = False
@@ -325,6 +325,24 @@ typeMismatch s typ1 typ2 = failwith =<<
     where
     msg1 = case typ1 of { Left msg -> msg; Right typ -> show1T typ }
     msg2 = case typ2 of { Left msg -> msg; Right typ -> show1T typ }
+
+kindMismatch
+    :: Maybe U.SourceSpan
+    -> Either Text (Sing (a :: Hakaru))
+    -> Either Text (Sing (b :: Hakaru))
+    -> TypeCheckMonad r
+kindMismatch s k1 k2 = failwith =<<
+    makeErrMsg
+     "Kind Mismatch:"
+     s
+     (mconcat [ "expected "
+              , msg1
+              , ", found "
+              , msg2
+              ])
+    where
+    msg1 = case k1 of { Left msg -> msg; Right k -> show1T k }
+    msg2 = case k2 of { Left msg -> msg; Right k -> show1T k }
 
 missingInstance
     :: Text
@@ -533,10 +551,9 @@ inferType = inferType_
     go :: Maybe U.SourceSpan -> U.MetaTerm -> TypeCheckMonad (TypedAST abt)
     go sourceSpan t =
       case t of
-       U.Lam_ _ _ -> error "TODO: inferType{Lam_}"
-       -- U.Lam_ (U.SSing typ) e -> do
-       --     inferBinder typ e $ \typ2 e2 ->
-       --         return . TypedAST (SFun typ typ2) $ syn (Lam_ :$ e2 :* End)
+       U.Lam_ (U.SSing typ) e -> do
+           inferBinder typ e $ \typ2 e2 ->
+               return . TypedAST (SFun typ typ2) $ syn (Lam_ :$ e2 :* End)
 
        U.App_ e1 e2 -> do
            TypedAST typ1 e1' <- inferType_ e1
@@ -562,11 +579,10 @@ inferType = inferType_
            inferBinder typ1 e2 $ \typ2 e2' ->
                return . TypedAST typ2 $ syn (Let_ :$ e1' :* e2' :* End)
 
-       U.Ann_ _ _ -> error "TODO: inferType{U.Ann}"
-       -- U.Ann_ (U.SSing typ1) e1 -> do
-       --     -- N.B., this requires that @typ1@ is a 'Sing' not a 'Proxy',
-       --     -- since we can't generate a 'Sing' from a 'Proxy'.
-       --     TypedAST typ1 <$> checkType_ typ1 e1
+       U.Ann_ (U.SSing typ1) e1 -> do
+           -- N.B., this requires that @typ1@ is a 'Sing' not a 'Proxy',
+           -- since we can't generate a 'Sing' from a 'Proxy'.
+           TypedAST typ1 <$> checkType_ typ1 e1
 
        U.PrimOp_  op es -> inferPrimOp  op es
        U.ArrayOp_ op es -> inferArrayOp op es
@@ -770,7 +786,7 @@ inferType = inferType_
 
        U.TypeApp_ _ _ -> undefined
        U.TypeFun_ _ _ -> undefined
-       U.TypeLam_ _ -> undefined
+       U.TypeLam_ _ _ -> undefined
        U.TypeNat_ -> undefined
        U.TypeInt_ -> undefined
        U.TypeProb_ -> undefined
@@ -1366,15 +1382,14 @@ checkType = checkType_
         -- Change of direction rule suggests this doesn't need to be here
         -- We keep it here in case, we later use a U.Lam which doesn't
         -- carry the type of its variable
-        U.Lam_ _ _ -> error "TODO: checkType{Lam_}"
-        -- U.Lam_ (U.SSing typ) e1 ->
-        --     case typ0 of
-        --     SFun typ1 typ2 ->
-        --         case jmEq1 typ1 typ of
-        --           Just Refl -> do e1' <- checkBinder typ1 typ2 e1
-        --                           return $ syn (Lam_ :$ e1' :* End)
-        --           Nothing   -> typeMismatch sourceSpan (Right typ1) (Right typ)
-        --     _ -> typeMismatch sourceSpan (Right typ0) (Left "function type")
+        U.Lam_ (U.SSing typ) e1 ->
+            case typ0 of
+            SFun typ1 typ2 ->
+                case jmEq1 typ1 typ of
+                  Just Refl -> do e1' <- checkBinder typ1 typ2 e1
+                                  return $ syn (Lam_ :$ e1' :* End)
+                  Nothing   -> typeMismatch sourceSpan (Right typ1) (Right typ)
+            _ -> typeMismatch sourceSpan (Right typ0) (Left "function type")
 
         U.Let_ e1 e2 -> do
             TypedAST typ1 e1' <- inferType_ e1
@@ -1563,7 +1578,16 @@ checkType = checkType_
 
         U.TypeApp_ _ _ -> undefined
         U.TypeFun_ _ _ -> undefined
-        U.TypeLam_ _ -> undefined
+        U.TypeLam_ (U.SSing kind) te ->
+            case typ0 of
+            SKFun k1 k2 ->
+                case jmEq1 k1 k2 of
+                  Just Refl -> error "TODO: checkType{U.TypeLam}"
+                               -- do e1' <- checkBinder kind1 kind2 te
+                               --    return $ syn (Lam_ :$ te' :* End)
+                  Nothing   -> kindMismatch sourceSpan (Right k1) (Right kind)
+            _ -> kindMismatch sourceSpan (Right typ0) (Left "function kind")
+
         U.TypeNat_ -> undefined
         U.TypeInt_ -> undefined
         U.TypeProb_ -> undefined

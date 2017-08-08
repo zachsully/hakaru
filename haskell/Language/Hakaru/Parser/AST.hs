@@ -177,7 +177,7 @@ data AST' a =
     | TypeVar a
     | TypeApp (AST' a) (AST' a)
     | TypeFun (AST' a) (AST' a)
-    | TypeLam a (AST' a)  -- for now type level lambda will always be of kind * -> *
+    | TypeLam a (AST' a) (AST' a)
     | TypeNat
     | TypeInt
     | TypeProb
@@ -263,7 +263,8 @@ instance Eq a => Eq (AST' a) where
                                                        as   == bs
      (TypeFun a0 a1)     == (TypeFun b0 b1)          = a0   == b0 &&
                                                        a1   == b1
-     (TypeLam a0 a1)     == (TypeLam b0 b1)          = a0   == b0 &&
+     (TypeLam n a0 a1)   == (TypeLam m b0 b1)        = n    == m &&
+                                                       a0   == b0 &&
                                                        a1   == b1
      (TypeMeasure a)     == (TypeMeasure b)          = a    == b
      (TypeArray a)       == (TypeArray b)            = a    == b

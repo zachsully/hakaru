@@ -30,9 +30,10 @@ names = concatMap words [ "def fn"
                         , "expect"
                         , "return dirac"
                         , "integrate summate product from to"
-                        , "array plate chain of"
+                        , "plate chain of"
                         , "r_nop r_split r_index r_fanout r_add bucket"
-                        , "import data type ∞" ]
+                        , "import data type ∞"
+                        , "array measure nat int real prob" ]
 
 type ParserStream    = IndentStream (CharIndentStream Text)
 type Parser          = ParsecT     ParserStream () Identity
@@ -254,17 +255,6 @@ parenthesized = f <$> parens (commaSep expr)
 --------------------------------------------------------------------------------
 --                                  Types                                     --
 --------------------------------------------------------------------------------
-
-type_var_or_app :: Parser (AST' Text)
-type_var_or_app = do x <- ("array" <$ reserved "array") <|> identifier
-                     option (TypeVar x)
-                            (do as <- parens (commaSep type_expr)
-                                return (foldr TypeApp (TypeVar x) as))
-
-type_expr :: Parser (AST' Text)
-type_expr = foldr1 TypeFun <$> sepBy1 (parens type_expr <|> type_var_or_app)
-                                      (reservedOp "->")
-
 {-
 user-defined types:
 
@@ -277,18 +267,53 @@ data maybe(a):
   just(a)
 -}
 
-data_expr :: Parser (AST' Text)
-data_expr = do
-    reserved "data"
-    ident <- identifier
-    typvars <- parens (commaSep identifier)
-    ts <- blockOfMany type_var_or_app
-    return (TypeLam ident undefined)
+-- The top level type parser
+type_expr :: Parser (AST' Text)
+type_expr = foldr1 TypeFun <$> sepBy1 (parens type_expr <|> type_var_or_app)
+                                      (reservedOp "->")
+
+type_var_or_app :: Parser (AST' Text)
+type_var_or_app = try type_prim
+                  <|>
+                (do x <- ("array" <$ reserved "array") <|> identifier
+                    option (TypeVar x)
+                           (do as <- parens (commaSep type_expr)
+                               return (foldr TypeApp (TypeVar x) as)))
+
+
+type_prim :: Parser (AST' Text)
+type_prim =
+  try (reserved "nat" *> return TypeNat)
+  <|> (reserved "int" *> return TypeInt)
+  <|> (reserved "prob" *> return TypeProb)
+  <|> (reserved "real" *> return TypeReal)
+
+-- define let statements as type functions
+data_expr = localIndentation Ge $ do
+    absoluteIndentation (reserved "data")
+    name <- identifier
+    bodyTyp <- optionMaybe type_expr
+    reservedOp ":"
+    body <- localIndentation Gt (blockOfMany type_var_or_app)
+    _ <- error . show $ body
+    let body' = undefined
+        kind = undefined
+    -- let body' = foldr (\(var', varTyp) e -> TypeLam var' varTyp e) body vars
+    --     kind  = foldr TypeFun <$> bodyTyp <*> return (map snd vars)
+    Let name (maybe id (flip Ann) kind body')
+        <$> absoluteIndentation expr
 
 type_syn_expr :: Parser (AST' Text)
 type_syn_expr =
-    reserved "type" *>
-     (TypeLam <$> identifier <* reservedOp "=" <*> type_expr)
+   reserved "type" *>
+     (TypeLam <$> identifier <* reservedOp "="
+              <*> return (TypeVar "star")
+              <*> type_expr)
+
+  -- = localIndentation Ge
+  -- (absoluteIndentation (try (Let <$> identifier <* reservedOp "=")
+  --                           <*> localIndentation Gt expr)
+  --  <*> absoluteIndentation expr)
 
 --------------------------------------------------------------------------------
 

@@ -253,7 +253,7 @@ parenthesized = f <$> parens (commaSep expr)
         f xs = foldr1 Pair xs
 
 --------------------------------------------------------------------------------
---                                  Types                                     --
+--                              Types and Kinds                               --
 --------------------------------------------------------------------------------
 {-
 user-defined types:
@@ -271,6 +271,19 @@ data maybe(a):
 type_expr :: Parser (AST' Text)
 type_expr = foldr1 TypeFun <$> sepBy1 (parens type_expr <|> type_var_or_app)
                                       (reservedOp "->")
+
+    -- reserved "fn"
+    -- *>  (Lam
+    --     <$> identifier
+    --     <*> type_expr
+    --     <*  reservedOp ":"
+    --     <*> expr
+    --     )
+
+kind_expr :: Parser (AST' Text)
+kind_expr = foldr1 TypeFun <$> sepBy1 (parens type_expr <|> type_var_or_app)
+                                      (reservedOp "=>")
+
 
 type_var_or_app :: Parser (AST' Text)
 type_var_or_app = try type_prim
@@ -328,7 +341,6 @@ pat_expr =  try (PData' <$> pdat_expr)
         <|> (PData' <$> (DV "pair" <$> parens (commaSep pat_expr)))
         <|> (PWild' <$  reservedOp "_")
         <|> (PVar'  <$> identifier)
-
 
 -- | Blocks are indicated by colons, and must be indented.
 blockOfMany :: Parser a -> Parser [a]

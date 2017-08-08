@@ -785,8 +785,16 @@ inferType = inferType_
        U.InjTyped t     -> let t' = t in return $ TypedAST (typeOf t') t'
 
        U.TypeApp_ _ _ -> undefined
-       U.TypeFun_ _ _ -> undefined
-       U.TypeLam_ _ _ -> undefined
+
+       U.TypeFun_ typ1 typ2 -> do
+           TypedAST kind1 typ1' <- inferType_ typ1
+           TypedAST kind2 typ2' <- inferType_ typ2
+           return $ TypedAST SStar (error "TODO: add typefun to term")
+
+       U.TypeLam_ (U.SSing kind) e ->
+           inferBinder kind e $ \kind2 e2 ->
+               return . TypedAST (SKFun kind kind2) $ syn (TyLam_ :$ e2 :* End)
+
        U.TypeNat_ -> undefined
        U.TypeInt_ -> undefined
        U.TypeProb_ -> undefined
@@ -1577,7 +1585,9 @@ checkType = checkType_
                  Nothing   -> typeMismatch sourceSpan (Right typ0) (Right typ1)
 
         U.TypeApp_ _ _ -> undefined
+
         U.TypeFun_ _ _ -> undefined
+
         U.TypeLam_ (U.SSing kind) te ->
             case typ0 of
             SKFun k1 k2 ->
@@ -1586,12 +1596,28 @@ checkType = checkType_
                                -- do e1' <- checkBinder kind1 kind2 te
                                --    return $ syn (Lam_ :$ te' :* End)
                   Nothing   -> kindMismatch sourceSpan (Right k1) (Right kind)
-            _ -> kindMismatch sourceSpan (Right typ0) (Left "function kind")
+            _ -> kindMismatch sourceSpan (Right typ0) (Left "star => star")
 
-        U.TypeNat_ -> undefined
-        U.TypeInt_ -> undefined
-        U.TypeProb_ -> undefined
-        U.TypeReal_ -> undefined
+        U.TypeNat_ ->
+          case typ0 of
+            SStar -> return (error "term TyNat")
+            _ -> kindMismatch sourceSpan (Right typ0) (Left "star")
+
+        U.TypeInt_ ->
+          case typ0 of
+            SStar -> return (error "term TyInt")
+            _ -> kindMismatch sourceSpan (Right typ0) (Left "star")
+
+        U.TypeProb_ ->
+          case typ0 of
+            SStar -> return (error "term TyProb")
+            _ -> kindMismatch sourceSpan (Right typ0) (Left "star")
+
+        U.TypeReal_ ->
+          case typ0 of
+            SStar -> return (error "term TyReal")
+            _ -> kindMismatch sourceSpan (Right typ0) (Left "star")
+
         U.TypeSum_ _ -> undefined
         U.TypeProd_ _ -> undefined
         U.TypeMeasure_ _ -> undefined
@@ -1811,27 +1837,6 @@ checkOrUnsafeCoerce s e typA typB =
             e2' <- checkBinder typ1 typB (bind x $ syn $ U.Dirac_ (var x))
             return $ syn (MBind :$ e :* e2' :* End)
           (_ ,  _) -> typeMismatch s (Right typB) (Right typA)
-
-----------------------------------------------------------------
--- Type stuff
-
-isType :: Ctx -> U.AST -> Bool
-isType _ ast = caseVarSyn ast funVar funSyn
-  where funVar = const False
-        funSyn = const False
-  -- case ast of
-  --   U.TypeApp_ _ _ -> True
-  --   U.TypeFun_ _ _ -> True
-  --   U.TypeLam_ _ -> True
-  --   U.TypeNat_ -> True
-  --   U.TypeInt_ -> True
-  --   U.TypeProb_ -> True
-  --   U.TypeReal_ -> True
-  --   U.TypeSum_ _ -> True
-  --   U.TypeProd_ _ -> True
-  --   U.TypeMeasure_ _ -> True
-  --   U.TypeArray_ _ -> True
-  --   _ -> False
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
